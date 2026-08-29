@@ -1,0 +1,76 @@
+{{- /* この断片は wiki = true のターゲットの settings.json へ deep merge される。
+       規約（CLAUDE.md 断片）・skills・doc・この hook 登録が同じフラグから導出され、
+       キルスイッチ（wiki = false）で同時に消える。設計判断・棄却案・実測の経緯は
+       vault [[concepts/wiki-kill-switch]] が正典で、ここには契約だけを書く。
+
+       hook は `OBSIDIAN_VAULT_PATH` を読み、未設定なら黙って抜ける（wiki を使わない
+       プロジェクトのセッションでも起動するため）。
+
+       閾値がここ（env）にあるのは、llmtpl の conf が `true`/`false` 限定で数値を書けないため。
+       `0` でその種別だけ無効になる。
+       ⚠️ **env を足したら hook 側の `consider` と対で入れる**。片方だけ残すと
+       「読み手のいない env」か「閾値を持たない催促」になる。
+
+       command が実体の存在を確かめてから起動するのは、登録（この JSON・git 追跡の生成物）と
+       実体（llmtpl が張る symlink）で配送経路が違い、「登録あり・実体なし」が起こりうるため。
+       落ちても作業の正しさには影響しない（促しが出ないだけ）ので黙って抜ける。
+
+       - `WIKI_HOT_MAX_BYTES` — hot.md のバイト上限。構成から積んだラチェットで、
+         **鳴ったら天井を上げず、増えた節の書き手（skill）を直す**（値の導出と実測は vault）。
+       - `WIKI_INDEX_MAX_BYTES` — index.md 用。`0` は「上限なし・計測のみ」。ページ数に線形に
+         育つ正当な成長を持つので、1 エントリの契約（`summary:` ≤200 chars）が行き渡るまで
+         床は決めない。hot と env を分けるのは成長法則が違うため（1 個の値では縛れない）。
+       超過してもメーター行に文字列が足されるだけ（vault へ書かない・exit 0・催促も出ない）。
+       ⚠️ 実値をコメントや hook 側へ再掲しない（再掲は乖離した実績がある。値は下の JSON だけ）。
+
+       timeout の分割: wiki_maintenance は log.md を読むだけの 5 秒。qmd_refresh は
+       `qmd update` の実行を含むので別グループで 20 秒（embed は hook がバックグラウンドへ
+       逃がすので含まない）。`QMD_TRANSPORT` は置かない —— env が届かない環境が実在するので
+       skill 側のフォールバックで解決済み。
+
+       SessionEnd にも qmd_refresh を置くのは「索引の更新を出口へ寄せ、入口は保険にする」構成。
+       入口を消さないのは、SessionEnd がクラッシュ等では走らないのと、別マシンが push した分を
+       pull 後に拾う役目が入口にあるため。SessionEnd は `--wait`（同期）—— セッションが終わると
+       親が死んで背景の embed が殺されるため。timeout 120 秒は蒸留 1 回ぶんの embed が収まる値で、
+       足りなくてもロックは 10 分で奪われ、次の入口が続きを拾う。 */}}
+{
+  "env": {
+    "WIKI_LINT_INTERVAL_DAYS": "14",
+    "WIKI_DEDUP_INTERVAL_DAYS": "30",
+    "WIKI_HOT_MAX_BYTES": "8192",
+    "WIKI_INDEX_MAX_BYTES": "0"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f ~/.claude/hooks/wiki_maintenance.sh ]; then bash ~/.claude/hooks/wiki_maintenance.sh; fi",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f ~/.claude/hooks/qmd_refresh.sh ]; then bash ~/.claude/hooks/qmd_refresh.sh --src=sessionstart; fi",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f ~/.claude/hooks/qmd_refresh.sh ]; then bash ~/.claude/hooks/qmd_refresh.sh --wait --src=sessionend; fi",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

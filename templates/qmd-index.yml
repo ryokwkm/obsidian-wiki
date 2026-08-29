@@ -1,0 +1,24 @@
+# qmd（Markdown 検索 CLI・任意依存）の collection 定義サンプル。
+# 置き場所: ~/.config/qmd/index.yml
+# collection 名は vault ディレクトリ名と同一にし、settings.json の QMD_WIKI_COLLECTION と
+# 一致させる。qmd が collection add / remove でこのファイルを再生成するとコメントは失われる。
+#
+# ignore リスト: wiki skill が直接 Read する運用ファイルと作業領域を検索対象から外す。
+# log.md は全操作の note を 1 ファイルに溜めるため、wiki 系クエリでほぼ必ず上位に来てしまう。
+# hot.md / index.md も skill が Read する派生ビューなので検索には冗長。
+collections:
+  my-vault:
+    path: /path/to/your/vault
+    pattern: "**/*.md"
+    ignore:
+      - "hot.md"
+      - "index.md"
+      - "log.md"
+      - "_raw/**"
+      - "_staging/**"
+      - "_archives/**"
+      - "_state/**"
+models:
+  embed: hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf
+  generate: hf:tobil/qmd-query-expansion-1.7B-gguf/qmd-query-expansion-1.7B-q4_k_m.gguf
+  rerank: hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf

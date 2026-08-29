@@ -1,0 +1,4 @@
+# log.md は純粋な追記型なので、衝突させず両方の行を残す。
+# hot.md / index.md / .manifest.json は構造があり union できないため、
+# 衝突したらマージせず片方を採り wiki-update で再生成する（→ 手動解決）。
+log.md merge=union
