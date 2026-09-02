@@ -110,10 +110,10 @@ sources: [projects/<project-name>]
 summary: >-
     One or two sentences (≤200 chars) describing what this page covers.
 provenance:
-  extracted: 0.6
-  inferred: 0.35
-  ambiguous: 0.05
-base_confidence: 0.59
+  extracted: <computed>         # 本文のマーカー実数から出す。下の数字は書かない
+  inferred: <computed>
+  ambiguous: <computed>
+base_confidence: <computed>     # 式の出力のみ。証拠が強いからと上げない
 lifecycle: draft                # floor. This skill distills work you just did, so the evidence is usually
                                 # already in hand — promote per `~/.claude/doc/doc_wiki_lifecycle_rubric.md`
                                 # and add `lifecycle_evidence` + `evidence_at`. Never copy a neighbour's rank.
@@ -129,6 +129,18 @@ updated: TIMESTAMP
 
 Use [[wikilinks]] to connect to other pages.
 ```
+
+**`provenance` と `base_confidence` は必ず計算して書く。テンプレの数字を残さない。**
+2026-09-02 の lint で、この 2 つが vault 全体（32 ページ）で式から外れていた。原因は 2 つとも
+「それらしい定数を写した」こと ——
+
+- `provenance` は本文の `^[inferred]` / `^[ambiguous]` を**実際に数える**。分母はコードフェンス・表・
+  見出し・引用を除いた箇条書き＋文。旧テンプレが持っていた `0.6 / 0.35 / 0.05` は
+  `wiki-capture/references/RAW-FORMAT.md` のキャリブレーション表の 1 行で、**あの表は `_raw/` 専用**
+  （同ファイルが "Never carry a number from this table onto a promoted page" と明記している）
+- `base_confidence` は `~/.claude/doc/doc_wiki_schema.md` の式の出力**だけ**。証拠が強いページを
+  手心で上げてはいけない —— 証拠の強さを載せる軸は `lifecycle` で、そちらに既に入っている。
+  二重に載せると `lifecycle` と相関して情報が減るうえ、Rule 12e が毎回ドリフトとして鳴る
 
 **Write a `summary:` frontmatter field** on every new/updated page (1–2 sentences, ≤200 chars), using `>-` folded style. For project sync, a good summary answers "what does this page tell me about the project I wouldn't guess from its title?" This field powers cheap retrieval by `wiki-query`.
 
