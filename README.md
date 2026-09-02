@@ -37,10 +37,9 @@ bundle/                   ここが配布物の本体（llmtpl バンドル。�
         ├── wiki-dedup            同一概念の重複ページ検出とマージ
         └── claude-history-ingest Claude Code の会話履歴から知見を発掘
 templates/                vault の初期 seed 一式と qmd collection 定義のサンプル
-bin/qmd                   qmd を bun 経路で強制起動するラッパー（任意）
 ```
 
-`bundle/` の外（README・LICENSE・templates/・bin/）はリポジトリの付属物で、配布されない
+`bundle/` の外（README・LICENSE・templates/）はリポジトリの付属物で、配布されない
 （llmtpl はバンドル直下に非ドットのディレクトリを置くことを許さないため、この 2 層になっている）。
 
 ## 上流との差分（実測ベース）
@@ -133,7 +132,7 @@ vault 自体を git 管理する場合は `templates/vault/.gitattributes` も�
 | `OBSIDIAN_RAW_DIR` | 任意 | `_raw/` の場所を vault 外に置く場合 |
 | `QMD_WIKI_COLLECTION` | 任意 | qmd の collection 名（vault ディレクトリ名と一致させる） |
 | `QMD_PAPERS_COLLECTION` | 任意 | 論文用 collection 名 |
-| `QMD_BIN_DIR` | 任意 | `qmd` 実行ファイルの探索パスを前置する場合 |
+| `QMD_BIN_DIR` | 任意 | `qmd` の置き場（`~/.bun/bin` 等）。hook は非ログインシェルで走り `.zshrc` の PATH を持たないので、`qmd` が見つからないときに指定する |
 
 ## qmd（任意依存）
 
@@ -142,7 +141,10 @@ vault 自体を git 管理する場合は `templates/vault/.gitattributes` も�
 無くても全機能が grep で動く。
 
 - collection 定義のサンプル: `templates/qmd-index.yml` → `~/.config/qmd/index.yml`
-- 同梱ランチャーが node 経路で起動できない環境向けの bun 強制ラッパー: `bin/qmd`
+- **qmd 2.8 以降を使うこと**。2.5 系までは `better-sqlite3` 12.x が prebuild を持たず、`bun install -g` が
+  postinstall をブロックするため同梱ランチャーの node 経路が `better_sqlite3.node` 不在で落ちた。
+  2.8 系は `better-sqlite3` 13.x の prebuild を同梱するので `npm install -g` / `bun install -g` の
+  どちらでも素で動く
 
 ## 設計の要点
 
