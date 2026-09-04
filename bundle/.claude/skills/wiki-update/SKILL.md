@@ -136,8 +136,8 @@ Use [[wikilinks]] to connect to other pages.
 
 - `provenance` は本文の `^[inferred]` / `^[ambiguous]` を**実際に数える**。分母はコードフェンス・表・
   見出し・引用を除いた箇条書き＋文。旧テンプレが持っていた `0.6 / 0.35 / 0.05` は
-  `wiki-capture/references/RAW-FORMAT.md` のキャリブレーション表の 1 行で、**あの表は `_raw/` 専用**
-  （同ファイルが "Never carry a number from this table onto a promoted page" と明記している）
+  wiki-capture が持つ raw 用キャリブレーション表の 1 行で、**あの表は `_raw/` 専用**
+  （その表自身が "Never carry a number from this table onto a promoted page" と明記している）
 - `base_confidence` は `~/.claude/doc/doc_wiki_schema.md` の式の出力**だけ**。証拠が強いページを
   手心で上げてはいけない —— 証拠の強さを載せる軸は `lifecycle` で、そちらに既に入っている。
   二重に載せると `lifecycle` と相関して情報が減るうえ、Rule 12e が毎回ドリフトとして鳴る
