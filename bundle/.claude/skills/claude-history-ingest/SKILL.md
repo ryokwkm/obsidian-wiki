@@ -1,6 +1,6 @@
 ---
 name: claude-history-ingest
-description: Claude Code の会話履歴を Obsidian wiki へ取り込む。過去の Claude との会話から知見を掘り起こしたいとき、~/.claude フォルダを取り込みたいとき、過去のコーディングセッションから学びを抽出したいとき、「Claude の履歴を処理して」「会話を wiki に追加して」「Claude と何を話したっけ」や英語の "process my Claude history" / "add my conversations to the wiki" / "what have I discussed with Claude before" と言われたときに使う。.claude フォルダ・Claude projects・セッションデータ・過去の会話ログ・local-agent-mode のセッション・監査ログに言及されたときも起動する。
+description: Claude Code の会話履歴（~/.claude/projects のセッションログ）を Obsidian wiki へ取り込み、過去のセッションから知見を抽出する。「Claude の履歴を処理して」「会話を wiki に追加して」「Claude と何を話したっけ」や英語の "process my Claude history" / "add my conversations to the wiki" と言われたとき、.claude フォルダ・セッションデータ・過去の会話ログに言及されたときに使う。
 ---
 
 # Claude History Ingest — Conversation Mining

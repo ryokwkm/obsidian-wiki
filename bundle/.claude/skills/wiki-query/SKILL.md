@@ -1,6 +1,6 @@
 ---
 name: wiki-query
-description: コンパイル済みの Obsidian wiki を検索して質問に答える。ナレッジベースについて質問されたとき、wiki 横断で情報を探したいとき、「◯◯について何を知ってる」「◯◯に関するものを全部出して」や英語の "what do I know about X" / "find everything related to Y" と言われたとき、wiki ページからの引用付きで統合した答えが欲しいときに使う。wiki 内のトピック間の繋がりを辿りたいとき、「X と Y はどう繋がってる」「X と Y を結ぶものは何」「X から Z までの連鎖を辿って」「X が推移的に依存しているものは」といったマルチホップの質問にも、型付きエッジを複数ホップ辿って答える。どのプロジェクトからでも使える。「ざっと答えて」「ページは読まなくていい」「早く調べて」や "quick answer" / "just scan" / "fast lookup" で起動する index のみの高速モードもあり、ページ本文を読まずに要約と frontmatter だけで答える。
+description: コンパイル済みの Obsidian wiki を検索し、ページからの引用付きで統合した答えを返す。「◯◯について何を知ってる」「◯◯に関するものを全部出して」「X と Y はどう繋がってる」や英語の "what do I know about X" / "find everything related to Y" と言われたときに使う。型付きエッジを複数ホップ辿るマルチホップの質問にも答える。「ざっと答えて」/ "quick answer" で index だけ読む高速モード。どのプロジェクトからでも使える。
 ---
 
 # Wiki Query — Knowledge Retrieval

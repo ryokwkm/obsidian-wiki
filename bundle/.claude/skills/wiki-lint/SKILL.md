@@ -1,6 +1,6 @@
 ---
 name: wiki-lint
-description: Obsidian wiki の健全性を監査・維持する。wiki の問題点をチェックしたいとき、孤立ページの発見、矛盾の検出、陳腐化した内容の特定、壊れた wikilink の修復、ナレッジベース全般の保守をしたいときに使う。「wiki を掃除して」「何を直すべき」「ノートを監査して」「wiki のヘルスチェック」や英語の "clean up the wiki" / "what needs fixing" / "audit my notes" / "wiki health check" でも起動する。--consolidate を付けると報告のみのモードから「実行して報告する」モード（dream cycle）に切り替わり、壊れたリンクの修復・孤立ページへのクロスリファレンス追加・陳腐化した verified ページへの stale コールアウト付与・陳腐化した周辺ページの降格・矛盾コールアウトの追加までを、dry-run プレビューとユーザーの明示的な確認を経てから行う。
+description: Obsidian wiki の健全性を監査する（孤立ページ・壊れた wikilink・矛盾・陳腐化）。「wiki を掃除して」「何を直すべき」「ノートを監査して」「wiki のヘルスチェック」や英語の "audit my notes" / "wiki health check" と言われたときに使う。`--consolidate` で報告のみから「修復して報告」（dream cycle）へ切り替わり、dry-run とユーザーの確認を経て直す。
 ---
 
 # Wiki Lint — Health Audit

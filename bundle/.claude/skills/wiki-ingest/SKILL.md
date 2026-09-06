@@ -1,6 +1,6 @@
 ---
 name: wiki-ingest
-description: あらゆるソースを Obsidian wiki へ取り込み、その知識を相互リンクされた wiki ページへ蒸留する。構造化文書（PDF・markdown・記事・論文・メモ・フォルダ）、非構造テキスト（チャットのエクスポート、会話ログ、Slack/Discord のスレッド、議事録、CSV/JSON データ、日誌、ブックマーク、メールアーカイブ、テキストダンプ）、および Web URL を扱う。新しいソースを wiki に追加したいとき、つまり「wiki に追加して」「この資料を処理して」「このフォルダを取り込んで」「このデータを取り込んで」「このエクスポート/ログを処理して」「この URL を保存して」「/ingest-url」や英語の "add this to the wiki" / "process these docs" / "ingest this folder" / "save this page" と言われたとき、URL を貼って「これ追加して」と言われたとき、ファイルを渡されたときに使う。raw モード（「下書きを処理して」「raw ページを昇格して」や _raw/ ステージングディレクトリへの言及）も担当する。より専門的な ingest skill（claude-history-ingest など）が扱わない、あらゆる文書・テキスト・URL の受け皿となる汎用 skill。
+description: あらゆるソース（文書・PDF・記事・フォルダ・チャットログ・議事録・CSV/JSON・ブックマーク・Web URL）を Obsidian wiki へ取り込み、相互リンクされたページへ蒸留する。「wiki に追加して」「この資料を処理して」「このフォルダ/URL を取り込んで」や英語の "add this to the wiki" / "ingest this" / "save this page" と言われたとき、ファイルや URL を渡されたときに使う。`_raw/` の下書きを本ページへ昇格する raw モードも担当。専門 skill（claude-history-ingest 等）が扱わないソースの受け皿。
 ---
 
 # Obsidian Ingest — Document Distillation

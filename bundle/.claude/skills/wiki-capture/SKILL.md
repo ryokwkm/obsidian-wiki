@@ -1,6 +1,6 @@
 ---
 name: wiki-capture
-description: 現在の会話を恒久的で構造化された wiki ノートとして保存する。「これを保存して」「/wiki-capture」「これを記録して」「この会話を残して」「wiki に追加して」や英語の "save this" / "capture this" / "preserve this" / "add this to my wiki" と言われたとき、いま話した内容を残る知識に変えたいときに使う。内容を分類し、チャットの書き起こしではなく宣言的な知識として書き直し、vault の正しいカテゴリへ配置する。60 秒以内に `_raw/` ステージング領域へ投げ込む高速な QUICK MODE も持つ（`/wiki-capture --quick`、「クイックキャプチャ」「この知見を保存して」「このバグ修正を保存して」「この落とし穴を保存して」「raw に放り込んで」や "quick capture" / "quick save to wiki"）。QUICK MODE は manifest も index も書かず、あとから `/wiki-ingest` で本ページへ昇格させる。
+description: 現在の会話を、チャットの書き起こしではなく宣言的な知識として wiki ノートへ保存する。「これを保存して」「この会話を残して」「wiki に追加して」や英語の "save this" / "capture this" と言われたときに使う。`--quick`（「クイックキャプチャ」「raw に放り込んで」/ "quick capture"）は manifest も index も書かず `_raw/` へ 60 秒で投げ込み、後で wiki-ingest が本ページへ昇格させる。
 ---
 
 # Wiki Capture — Conversation to Wiki Note

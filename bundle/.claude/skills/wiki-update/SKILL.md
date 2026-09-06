@@ -1,6 +1,6 @@
 ---
 name: wiki-update
-description: 現在のプロジェクトの知識を Obsidian wiki へ同期する。どのプロジェクトからでも使え、「wiki を更新して」「wiki に同期して」「これを wiki に保存して」「obsidian を更新して」や英語の "update wiki" / "sync to wiki" / "save this to my wiki" と言われたとき、作業してきた内容をナレッジベースへ蒸留したいときに使う。「〜の仕様書を作って」「〜をドキュメント化して」「〜の doc を作って」と言われたときや、単一のファイル・概念について仕様書やドキュメントを書くよう頼まれたときも、独立した `doc_*.md` を生成するのではなく、そのファイル/概念を wiki へ蒸留する。どこにいても vault へ知識を押し込めるクロスプロジェクトな skill。
+description: 現在のプロジェクトで得た知識（外部ツールの仕様・設計判断とその理由・落とし穴）を Obsidian wiki へ蒸留・同期する。「wiki を更新して」「wiki に保存して」「obsidian を更新して」や英語の "update wiki" / "sync to wiki" と言われたとき、タスク完了時・コミット時に蒸留が要ると判断したとき、「〜の仕様書を作って」「ドキュメント化して」と言われたとき（独立した `doc_*.md` を作らず wiki へ蒸留する）に使う。どのプロジェクトからでも使える。
 ---
 
 # Wiki Update — Sync Any Project to Your Wiki
@@ -14,6 +14,15 @@ You are distilling knowledge from the current project into the user's Obsidian w
 3. Find out what the wiki already contains **without reading `index.md` whole.** In a mature vault `index.md` runs to tens of kilobytes, which makes a blind full read the most expensive thing this skill does. Follow the Retrieval Primitives table in `~/.claude/doc/doc_wiki_schema.md`: `Grep` `index.md` for the project name and for each concept you are about to write, then read the `summary:` field of the few pages that match. Read `index.md` in full only if those greps come back empty and you still need the shape of the vault.
 
 When writing internal links in Steps 4–5, apply the format that the resolved `OBSIDIAN_LINK_FORMAT` selects — see the Link Format section of `~/.claude/doc/doc_wiki_schema.md`.
+
+## Operating Rules
+
+These govern *how* this skill runs, not what it writes. They used to sit in the always-loaded CLAUDE.md fragment; they live here so they are read only when the skill actually runs.
+
+1. **Delegate, then report in one line.** When this skill runs at the end of some other task, the main session finishes its answer first and runs the skill in a `fork` subagent (the fork inherits the context, so nothing needs re-explaining, and the vault work stays out of the main context). The only thing that reaches the user is Step 7's single line. Doing it the other way round pulls the answer toward the vault work just done.
+2. **Commit the vault as its own repository.** When the vault is a separate git repository, stage with an explicit path — `git -C "$OBSIDIAN_VAULT_PATH" add <paths you wrote>` — and commit there. Never run a bare `git add` from the project: it sweeps the parent repository in. Vault changes nobody commits are picked up by nobody, and end up inside some later, unrelated commit.
+3. **A size-meter overflow is a writer bug, not a ceiling problem.** If the SessionStart meter reports `hot.md` or `index.md` over its limit, do not raise `WIKI_HOT_MAX_BYTES` / `WIKI_INDEX_MAX_BYTES`. Find the section that grew (`git -C "$OBSIDIAN_VAULT_PATH" log -p -- hot.md index.md`) and fix the skill that wrote it. Derived views are caches that can be thrown away and rebuilt; distilled knowledge belongs in pages.
+4. **Other sessions write concurrently.** `hot.md` / `index.md` change under you — that is why Step 6 allows only `Edit`. `.manifest.json` is read and rewritten in one `jq` command; a Read → think → Write round trip opens a window of seconds to minutes in which another session's update is lost.
 
 ## Step 1: Understand the Project
 

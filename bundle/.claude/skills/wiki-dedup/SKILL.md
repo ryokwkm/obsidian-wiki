@@ -1,6 +1,6 @@
 ---
 name: wiki-dedup
-description: Obsidian wiki 内でページ単位の同一性衝突（同じ概念が別名で複数ページになっている状態。たとえば "RSC" と "React Server Components"）を検出してマージする。「wiki の重複を整理して」「重複ページを探して」「ページをマージして」「wiki を統合して」「同じ内容のページが 2 つある」や英語の "dedup my wiki" / "find duplicate pages" / "merge duplicates" / "identity resolution" と言われたときに使う。構造をチェックするだけの wiki-lint とは異なり、この skill はページ単位の破壊的なマージを行うため慎重な確認が必要。
+description: Obsidian wiki 内で同じ概念が別名で複数ページになっている衝突（"RSC" と "React Server Components" など）を検出してマージする。「重複ページを探して」「ページをマージして」「同じ内容のページが 2 つある」や英語の "dedup my wiki" / "merge duplicates" と言われたときに使う。ページ単位の破壊的なマージなので確認を挟む。構造チェックだけなら wiki-lint。
 ---
 
 # Wiki Dedup — Identity Resolution and Page-Level Deduplication
