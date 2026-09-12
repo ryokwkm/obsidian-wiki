@@ -13,7 +13,7 @@ retrieval のコスト順序を定める。**vault へ書く直前**（ページ
 
 | 節 | 何を決めるか |
 |---|---|
-| Wiki Organization | カテゴリ（何の知識か）と `projects/`（どこから来た知識か）のディレクトリ構造 |
+| Wiki Organization | カテゴリ（何の知識か）・`projects/`（どこから来た知識か）・`_` 接頭辞の作業/原本ディレクトリ（`_source_docs/` = 一次資料の置き場） |
 | Special Files | `index.md` / `log.md` / `.manifest.json` の形式・書き込み規約と、派生ビュー（`index.md` / `hot.md`）の同時更新の扱い |
 | Page Template | 新規ページの frontmatter + 本文の雛形 |
 | Reserved System Tags | `visibility/` 予約タグ 3 種とタグ語彙の置き場（枚数・形式に機械検査が無いことの注記付き） |
@@ -94,6 +94,19 @@ One-paragraph summary of what this project is.
 ## Related
 - [[entities/some-service]] — deployment platform
 ```
+
+### Staging and source directories (`_` prefix)
+
+Directories whose name starts with `_` are not wiki pages: every scan (`wiki-lint`, `wiki-dedup`, the qmd index) skips them. A live page may link into them, and that link is not broken.
+
+| Directory | Holds | Written by |
+|---|---|---|
+| `_raw/` | quick-capture drafts awaiting promotion | `wiki-capture --quick`, promoted by `wiki-ingest` |
+| `_staging/` | pages awaiting review when `WIKI_STAGED_WRITES=true` | `wiki-ingest` |
+| `_archives/` | vault snapshots for rebuild / restore | archive operations |
+| `_source_docs/` | **the primary sources** — a verbatim copy of every local file ingested, named `<YYYY-MM-DD>-<original filename>`. The vault's copy is the source of record: `sources:` entries and manifest keys point here, never at the path the file was read from (download folders get cleared). Location overridable with `OBSIDIAN_SOURCES_DIR` | `wiki-ingest` (Step 1) |
+
+`_source_docs/` is kept **out of the search index on purpose**: an original and the pages distilled from it are near-duplicates, so indexing both makes them compete for the same result slots and lets a figure the distillation corrected resurface with equal weight. Reach the original through the page that cites it (`wiki-query` Step 4).
 
 ## Special Files
 
@@ -190,6 +203,17 @@ The manifest enables:
       "project": "my-project",
       "pages_created": ["entities/my-project-repo.md", "synthesis/claude-config-hierarchy.md"],
       "pages_updated": []
+    },
+    "_source_docs/2026-09-12-market-report.md": {
+      "ingested_at": "2026-09-12T02:10:07Z",
+      "size_bytes": 48095,
+      "modified_at": "2026-09-12T02:23:41Z",
+      "content_hash": "sha256:1b7c40e2a9…",
+      "source_type": "document",
+      "original_path": "~/Downloads/market-report.md",
+      "project": "my-project",
+      "pages_created": ["references/market-report.md"],
+      "pages_updated": []
     }
   },
   "projects": {
@@ -207,6 +231,9 @@ The manifest enables:
 
 **注意すべき実測事実**:
 
+- **ローカルファイルのキーは `_source_docs/` のコピーの vault 相対パス**（`wiki-ingest` Step 1）。渡された元の場所は
+  `original_path` に残る。同じファイルを元の場所から再度渡されたときは、キーではなく `content_hash` / `original_path` で
+  突き合わせる（キーだけ見ると「新規」に見えて二重に取り込む）。
 - **`sources` は無いことがある。** プロジェクト同期だけで育った vault は `projects` しか持たない
   （実在する。破損ではない）。**読む側は全キーを optional として扱う**（`sources` が無いなら
   「ソース単位の履歴は無い」と解釈し、作り直さない）。

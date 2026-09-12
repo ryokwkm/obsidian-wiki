@@ -6,6 +6,8 @@
 # ignore リスト: wiki skill が直接 Read する運用ファイルと作業領域を検索対象から外す。
 # log.md は全操作の note を 1 ファイルに溜めるため、wiki 系クエリでほぼ必ず上位に来てしまう。
 # hot.md / index.md も skill が Read する派生ビューなので検索には冗長。
+# _source_docs/ は ingest 元の原本コピー。蒸留ページと近重複なので同じ索引に入れると同じ枝を
+# 奪い合い、蒸留で直した数字が原本側から同じ重みで戻ってくる。原本へは蒸留ページの sources: から辿る。
 collections:
   my-vault:
     path: /path/to/your/vault
@@ -15,6 +17,7 @@ collections:
       - "index.md"
       - "log.md"
       - "_raw/**"
+      - "_source_docs/**"
       - "_staging/**"
       - "_archives/**"
       - "_state/**"

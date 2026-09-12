@@ -36,7 +36,7 @@ This skill supports three modes. Ask the user or infer from context:
 ### Append Mode (default)
 Only ingest sources that are **new or modified** since last ingest. Check the manifest using both timestamp **and content hash**:
 
-- If a source path is not in `.manifest.json` → it's new, ingest it
+- If a source path is not in `.manifest.json` → it's new, ingest it — **unless an existing entry's `content_hash` or `original_path` matches it**. A copied local file is keyed by its `_source_docs/` path (Step 1), so the same file handed over again from its original location matches only by hash or `original_path`; treat it as that entry.
 - If a source path is in `.manifest.json`:
   - Compute the file's SHA-256 hash: `sha256sum -- "<file>"` (or `shasum -a 256 -- "<file>"` on macOS). Always double-quote the path and use `--` to prevent filenames with special characters or leading dashes from being interpreted by the shell.
   - If the hash matches `content_hash` in the manifest → **skip it**, even if the modification time differs (file was touched but content is identical — git checkout, copy, NFS timestamp drift)
@@ -83,6 +83,19 @@ Read the source(s) the user wants to ingest. In append mode, skip files the mani
 - **Images** (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`) — *requires a vision-capable model*. Use the Read tool, which renders the image into your context. Treat screenshots, whiteboard photos, diagrams, and slide captures as first-class sources. If your model doesn't support vision, skip image sources and tell the user which files were skipped so they can re-run with a vision-capable model.
 
 Note the source path — you'll need it for provenance tracking.
+
+### Keep the original inside the vault (`_source_docs/`)
+
+**The vault's copy is the primary source.** A local file outside the vault has no promise of staying where it is — download folders and temp directories get cleared, files get renamed — and a `sources:` entry pointing there goes dead without anyone noticing (a `lifecycle: verbatim` page that claims to be a copy of the original is then a copy of nothing). So before distilling a local file, copy it:
+
+- **Where:** `$OBSIDIAN_SOURCES_DIR` (default `$OBSIDIAN_VAULT_PATH/_source_docs`), as `<YYYY-MM-DD>-<original filename>` — today's date, the filename unchanged so the file can still be recognised later. Create the directory if it doesn't exist. If the name is already taken, compare hashes: identical → reuse it; different → append a numeric suffix.
+- **Verify:** the copy's SHA-256 (`sha256sum` / `shasum -a 256`) must equal the original's before you go on — it is the `content_hash` you record anyway.
+- **Then reference the copy, never the path you were handed:** the `sources:` entry and the `.manifest.json` key are the vault-relative path (`_source_docs/2026-09-12-report.md`). Keep where it came from in the manifest entry's `original_path` (Step 7).
+- **Leave the original alone** — never move or delete it.
+- **Skip the copy only when the file is inside a git work tree** (`git -C "$(dirname "<file>")" rev-parse --is-inside-work-tree` prints `true`): a tracked file is recoverable from its repository, so reference it by its repo-relative path and note the commit instead of duplicating it. This is the exception, not the rule — most ingested files are exports and downloads with no other home.
+- **Size:** files over 10 MB are not copied. Reference the original path, warn the user that the vault holds no copy, and append `(not copied — <size>)` to the entry in `sources:`.
+
+URLs are not affected (the page written from one is the vault's record), and `_raw/` drafts are already inside the vault.
 
 ### Unstructured & conversational sources
 
@@ -284,7 +297,7 @@ For each page in your plan:
 - Use the generic page template from `~/.claude/doc/doc_wiki_schema.md` (frontmatter + sections). **For academic papers landing in `references/`, use the Paper Deep-Dive Template** in `references/paper-template.md` instead of the generic one (see *Academic papers* in Step 1).
 - Place in the correct category directory
 - Add `[[wikilinks]]` to at least 2-3 existing pages
-- Include the source in the `sources` frontmatter field. In raw mode: derive from `capture_source` + `sources` frontmatter of the `_raw/` file — never use the `_raw/` path itself (see Raw Mode section)
+- Include the source in the `sources` frontmatter field — for a local file, the vault-relative path of its `_source_docs/` copy, never the path it was read from (Step 1). In raw mode: derive from `capture_source` + `sources` frontmatter of the `_raw/` file — never use the `_raw/` path itself (see Raw Mode section)
 
 **If updating an existing page:**
 - Read the current page first
@@ -352,6 +365,7 @@ After writing pages, check that wikilinks work in both directions. If page A lin
   "size_bytes": FILE_SIZE,
   "modified_at": FILE_MTIME,
   "content_hash": "sha256:<64-char-hex>",
+  "original_path": "~/Downloads/report.md",  // where the copy in _source_docs/ came from (Step 1); omit for URL and _raw/ sources
   "source_type": "document",  // or "image" for png/jpg/webp/gif and image-only PDFs; "data" for chat/log/CSV/JSON sources
   "project": "project-name-or-null",
   "pages_created": ["list/of/pages.md"],
@@ -359,6 +373,8 @@ After writing pages, check that wikilinks work in both directions. If page A lin
 }
 ```
 `content_hash` is the SHA-256 of the file contents at ingest time. Always write it — it's the primary skip signal on subsequent runs.
+
+The entry's **key** is the vault-relative path of the `_source_docs/` copy (Step 1), not the path the file was read from; `original_path` keeps that, so the provenance survives after the original location is cleaned out.
 
 Also update `stats.total_sources_ingested` and `stats.total_pages`.
 

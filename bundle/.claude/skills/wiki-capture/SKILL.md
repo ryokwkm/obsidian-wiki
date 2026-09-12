@@ -179,7 +179,7 @@ Body structure by type:
 <[[wikilinks]]>
 ```
 
-**source:**
+**source:** — if the document is a local file (an export, a download), copy it into `_source_docs/` first (`<YYYY-MM-DD>-<original filename>`, default `$OBSIDIAN_VAULT_PATH/_source_docs`, `OBSIDIAN_SOURCES_DIR` overrides) and put the copy's vault-relative path in `sources:`. A path outside the vault is not a durable source — download folders get cleared.
 ```markdown
 # Title
 

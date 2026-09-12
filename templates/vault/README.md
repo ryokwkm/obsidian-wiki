@@ -20,6 +20,7 @@ PROJECT_NAME 用の Obsidian wiki vault。AI エージェントが蒸留した�
 - `_raw/` — 未整理ドラフトの staging（`wiki-ingest` が本ページへ昇格させる）
 - `_staging/` — `WIKI_STAGED_WRITES=true` 時のレビュー待ち
 - `_archives/` — rebuild/restore 用の vault スナップショット
+- `_source_docs/` — 一次資料。ingest したローカルファイルの原本コピー（`<YYYY-MM-DD>-<元のファイル名>`）。ページの `sources:` はここを指す（元の場所は消える）。検索索引には入れない（蒸留ページと近重複）
 
 ## 特殊ファイル
 

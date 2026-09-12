@@ -165,7 +165,7 @@ vault は「プロジェクトごとに 1 つ」が原則。`templates/vault/` �
 VAULT=~/vault/my-project          # 好きな場所でよい
 REPO=~/src/obsidian-wiki          # clone 先
 
-mkdir -p "$VAULT"/{concepts,entities,skills,references,synthesis,journal,projects,_archives,_raw,_staging}
+mkdir -p "$VAULT"/{concepts,entities,skills,references,synthesis,journal,projects,_archives,_raw,_staging,_source_docs}
 cp "$REPO"/templates/vault/*.md "$REPO"/templates/vault/.manifest.json \
    "$REPO"/templates/vault/.wikilintignore "$VAULT/"
 ```
@@ -298,6 +298,7 @@ hook 登録が同時に消える（キルスイッチ）。経路 B なら手順
 | `WIKI_HOT_MAX_BYTES` | 任意（既定 8192） | `hot.md` のサイズ上限（超過は警告のみ） |
 | `WIKI_INDEX_MAX_BYTES` | 任意（既定 0 = 計測のみ） | `index.md` のサイズ上限 |
 | `OBSIDIAN_RAW_DIR` | 任意 | `_raw/` の場所を vault 外に置く場合 |
+| `OBSIDIAN_SOURCES_DIR` | 任意 | 一次資料の置き場（ingest したローカルファイルの原本コピー。既定は vault 内の `_source_docs/`）。ページの `sources:` はここを指す —— 元の場所（ダウンロードフォルダ等）は消えるため |
 | `QMD_WIKI_COLLECTION` | 任意 | qmd の collection 名（vault ディレクトリ名と一致させる） |
 | `QMD_PAPERS_COLLECTION` | 任意 | 論文用 collection 名 |
 | `QMD_BIN_DIR` | 任意 | `qmd` の置き場（`~/.bun/bin` 等）。hook は非ログインシェルで走り `.zshrc` の PATH を持たないので、`qmd` が見つからないときに指定する |
