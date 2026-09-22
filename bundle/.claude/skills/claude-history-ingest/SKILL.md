@@ -322,7 +322,7 @@ The values, the ranks, and the promotion rules live in exactly one place — **`
 
 On update, leave `lifecycle` and `lifecycle_changed` unchanged unless the transcript itself shows a check being run that raises the rank — then re-rank per the rubric and update `lifecycle_evidence` / `evidence_at` alongside.
 
-**Mark provenance** per the convention in `~/.claude/doc/doc_wiki_schema.md` (Provenance Markers): unmarked text is extracted, `^[inferred]` marks a synthesized claim, `^[ambiguous]` marks a contested or unclear one.
+**Mark provenance** per the convention in `~/.claude/doc/doc_wiki_schema.md` (Provenance Markers): every claim carries a marker — `^[extracted]` for a paraphrase of what a source says, `^[inferred]` for a synthesized claim, `^[ambiguous]` for a contested or unclear one. Non-claims (headings, tables, code) stay unmarked and are not counted.
 
 - **Memory files** are mostly extracted — the user wrote them by hand and they're already distilled. Treat memory-derived claims as extracted unless you're stitching together claims from multiple memory files.
 - **Conversation distillation** is mostly inferred. You're synthesizing a coherent claim from many turns of dialogue, often filling in implicit reasoning. Apply `^[inferred]` liberally to synthesized patterns, generalizations across sessions, and "what the user really meant" interpretations.

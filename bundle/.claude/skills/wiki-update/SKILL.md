@@ -133,7 +133,7 @@ updated: TIMESTAMP
 
 # Page Title
 
-- A fact the codebase or a doc actually states.
+- A fact the codebase or a doc actually states. ^[extracted]
 - A reason the design works this way. ^[inferred]
 
 Use [[wikilinks]] to connect to other pages.
@@ -143,8 +143,9 @@ Use [[wikilinks]] to connect to other pages.
 2026-09-02 の lint で、この 2 つが vault 全体（32 ページ）で式から外れていた。原因は 2 つとも
 「それらしい定数を写した」こと ——
 
-- `provenance` は本文の `^[inferred]` / `^[ambiguous]` を**実際に数える**。分母はコードフェンス・表・
-  見出し・引用を除いた箇条書き＋文。旧テンプレが持っていた `0.6 / 0.35 / 0.05` は
+- `provenance` は本文の 3 マーカーを**実際に数える**。**分母はマーカーの総数**で、散文の行数ではない
+  （2026-09-21 に「箇条書き＋文」方式を廃止 —— 数える実装ごとに答えが変わり、同じページが
+  inferred 0.07 と 0.43 に割れた）。旧テンプレが持っていた `0.6 / 0.35 / 0.05` は
   wiki-capture が持つ raw 用キャリブレーション表の 1 行で、**あの表は `_raw/` 専用**
   （その表自身が "Never carry a number from this table onto a promoted page" と明記している）
 - `base_confidence` は `~/.claude/doc/doc_wiki_schema.md` の式の出力**だけ**。証拠が強いページを
@@ -155,9 +156,9 @@ Use [[wikilinks]] to connect to other pages.
 
 **Apply provenance markers** per the Provenance Markers section of `~/.claude/doc/doc_wiki_schema.md`. For project sync specifically:
 
-- **Extracted** — anything visible in the code, config, or a doc/commit message: file structure, dependencies, function signatures, what a file does.
-- **Inferred** — *why* a decision was made, design rationale, trade-offs, "the team chose X because Y" — unless a commit message, doc, or ADR states it explicitly.
-- **Ambiguous** — when the code and docs disagree, or when there's clearly an in-progress migration with two patterns living side by side.
+- **Extracted** (`^[extracted]`) — anything visible in the code, config, or a doc/commit message: file structure, dependencies, function signatures, what a file does.
+- **Inferred** (`^[inferred]`) — *why* a decision was made, design rationale, trade-offs, "the team chose X because Y" — unless a commit message, doc, or ADR states it explicitly.
+- **Ambiguous** (`^[ambiguous]`) — when the code and docs disagree, or when there's clearly an in-progress migration with two patterns living side by side.
 
 Compute the rough fractions and write the `provenance:` block on every new/updated page.
 

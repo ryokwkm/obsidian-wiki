@@ -347,10 +347,11 @@ Keep `lifecycle` unchanged on update **unless this pass brought new evidence**. 
 `visibility/` tags are system tags and do **not** count toward the 5-tag limit. When in doubt, omit — untagged pages are treated as public. Never add a visibility tag just because a topic sounds technical.
 
 **Apply provenance markers** per the convention in `~/.claude/doc/doc_wiki_schema.md` (Provenance Markers):
+- Extracted claims get a trailing `^[extracted]`
 - Inferred claims get a trailing `^[inferred]`
 - Ambiguous/contested claims get a trailing `^[ambiguous]`
-- Extracted claims need no marker
-- After writing the page, count rough fractions and write them to a `provenance:` frontmatter block (extracted/inferred/ambiguous summing to ~1.0). When updating an existing page, recompute and update the block.
+- Headings, tables, code fences and link lists stay unmarked and are **not** counted
+- After writing the page, count the markers (the denominator is their total, never the prose line count) and write them to a `provenance:` frontmatter block (extracted/inferred/ambiguous summing to ~1.0). When updating an existing page, recompute and update the block.
 
 ### Step 6: Update Cross-References
 

@@ -98,7 +98,7 @@ Do **not** write a summary of the conversation. Write the knowledge itself, in d
 - Yes: "Y is preferred over Z because [reason]. [^[inferred] if the rationale was implied, not stated explicitly]"
 
 Apply provenance markers per `~/.claude/doc/doc_wiki_schema.md`:
-- *Extracted* — explicitly stated in the conversation (no marker)
+- *Extracted* — explicitly stated in the conversation → `^[extracted]`
 - *Inferred* — generalized or synthesized from the conversation → `^[inferred]`
 - *Ambiguous* — disputed, uncertain, or contradictory → `^[ambiguous]`
 

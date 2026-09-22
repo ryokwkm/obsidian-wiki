@@ -77,7 +77,7 @@ Apply provenance markers inline per `~/.claude/doc/doc_wiki_schema.md`:
 
 | Marker | When to use |
 |---|---|
-| *(none)* | Explicitly stated in the conversation |
+| `^[extracted]` | Explicitly stated in the conversation |
 | `^[inferred]` | Synthesized or generalized beyond what was directly said |
 | `^[ambiguous]` | Uncertain, potentially incomplete, or contradicted elsewhere |
 

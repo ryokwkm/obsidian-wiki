@@ -153,11 +153,11 @@ Findings go in the `Index Issues` section (sample lines in `references/output-fo
 
 ### 7. Provenance Drift
 
-Check whether pages are being honest about how much of their content is inferred vs extracted. The marker convention (`^[inferred]` / `^[ambiguous]`, unmarked = extracted) and the optional `provenance:` frontmatter block are defined in `~/.claude/doc/doc_wiki_schema.md`.
+Check whether pages are being honest about how much of their content is inferred vs extracted. The marker convention (`^[extracted]` / `^[inferred]` / `^[ambiguous]` — every claim carries one) and the optional `provenance:` frontmatter block are defined in `~/.claude/doc/doc_wiki_schema.md`.
 
 **How to check:**
-- For each page with a `provenance:` block or any `^[inferred]`/`^[ambiguous]` markers, count sentences/bullets and how many end with each marker
-- Compute rough fractions (`extracted`, `inferred`, `ambiguous`)
+- For each page with a `provenance:` block or any marker, count the three markers. **The denominator is their total — not the page's prose.** Never re-derive a "sentences and bullets" denominator: it is not reproducible (the same page came out at inferred 0.07 vs 0.43 depending on how it was counted)
+- Compute fractions (`extracted`, `inferred`, `ambiguous`) over that total
 - Apply these thresholds:
   - **AMBIGUOUS > 15%**: flag as "speculation-heavy" — even 1-in-7 claims being genuinely uncertain is a signal the page needs tighter sourcing or should be moved to `synthesis/`
   - **INFERRED > 40% with no `sources:` in frontmatter**: flag as "unsourced synthesis" — the page is making connections but has nothing to cite

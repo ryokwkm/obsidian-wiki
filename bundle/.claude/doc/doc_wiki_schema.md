@@ -17,7 +17,7 @@ retrieval のコスト順序を定める。**vault へ書く直前**（ページ
 | Special Files | `index.md` / `log.md` / `.manifest.json` の形式・書き込み規約と、派生ビュー（`index.md` / `hot.md`）の同時更新の扱い |
 | Page Template | 新規ページの frontmatter + 本文の雛形 |
 | Reserved System Tags | `visibility/` 予約タグ 3 種とタグ語彙の置き場（枚数・形式に機械検査が無いことの注記付き） |
-| Provenance Markers | `^[inferred]` / `^[ambiguous]` と frontmatter の `provenance:` |
+| Provenance Markers | `^[extracted]` / `^[inferred]` / `^[ambiguous]` と frontmatter の `provenance:` |
 | Typed Relationships | `relationships:` の型（10 概念・16 綴り）と、文脈から型を推論する表 |
 | Confidence and Lifecycle | `base_confidence` の算出式と、lifecycle 正典へのポインタ |
 | Importance Tiering | `tier:` 3 段と昇格・降格の閾値（昇格に書き手がいないことの注記付き） |
@@ -393,31 +393,42 @@ Every claim on a wiki page has one of three provenance states. Mark them inline 
 
 | State | Marker | Meaning |
 |---|---|---|
-| **Extracted** | *(no marker — default)* | A paraphrase of something a source actually says. |
+| **Extracted** | `^[extracted]` suffix | A paraphrase of something a source actually says. |
 | **Inferred** | `^[inferred]` suffix | An LLM-synthesized claim — a connection, generalization, or implication the source doesn't state directly. |
 | **Ambiguous** | `^[ambiguous]` suffix | Sources disagree, or the source is unclear. |
 
 Example:
 
 ```markdown
-- Transformers parallelize across positions, unlike RNNs.
+- Transformers parallelize across positions, unlike RNNs. ^[extracted]
 - This is why they scale better on modern hardware. ^[inferred]
 - GPT-4 was trained on roughly 13T tokens. ^[ambiguous]
 ```
 
-(`^[...]` renders cleanly in Obsidian, never collides with `[[wikilinks]]`, keeps one bullet one
-bullet, and the extracted-by-default rule keeps unmarked pages valid.)
+(`^[...]` renders cleanly in Obsidian, never collides with `[[wikilinks]]`, and keeps one bullet one bullet.)
+
+**三種とも明示的に打つ。分母がそれで確定する。** 2026-09-21 までは extracted を「無印が既定」と
+していた。やめた理由は省筆の是非ではなく、**無印を既定にすると `provenance` の分母が散文の定義に
+なる**こと —— 「コードフェンス・表・見出し・引用を除いた箇条書き＋文」を数える実装は毎回ずれる。
+ai-settings vault で同じページの inferred 比率が、分母の取り方だけで **0.07 と 0.43** に割れた
+（2026-09-21 実測）。三種を打てば分母は「マーカーの総数」になり、`grep -c` で一致する。
+
+規約を実態へ寄せた側面もある: 同日の実測で、どの skill も指示していないのに `^[extracted]` が
+**53/69 ページ・1,229 箇所**へ自発的に打たれていた。
+
+**主張でない行は打たない。** 見出し・表・コードフェンス・導入文・リンク集は無印のまま残し、分母にも
+入れない。`provenance` を計算する側は 3 つのマーカーの出現数だけを数える。
 
 **Frontmatter summary:** Optionally surface the rough mix at the page level so the user can scan for speculation-heavy pages without reading them:
 
 ```yaml
 provenance:
-  extracted: 0.72   # rough fraction of sentences/bullets with no marker
+  extracted: 0.72   # fraction of MARKED units carrying ^[extracted] (not of all prose)
   inferred: 0.25
   ambiguous: 0.03
 ```
 
-These are best-effort numbers written by the ingest skill at create/update time. `wiki-lint` recomputes them and flags drift. The block is optional — pages without it are treated as fully extracted by convention.
+These are best-effort numbers written by the ingest skill at create/update time. `wiki-lint` recomputes them and flags drift. The block is optional — a page with neither the block nor any marker is treated as fully extracted by convention.
 
 ## Typed Relationships
 

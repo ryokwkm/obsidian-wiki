@@ -143,7 +143,7 @@ From the fetched content, identify:
 - **Open questions** — what does the page raise but not answer?
 
 Track provenance per claim:
-- *Extracted* — page explicitly states this (no marker needed)
+- *Extracted* — page explicitly states this → `^[extracted]`
 - *Inferred* — you're generalizing or connecting to external context → `^[inferred]`
 - *Ambiguous* — page is vague or internally contradictory → `^[ambiguous]`
 
