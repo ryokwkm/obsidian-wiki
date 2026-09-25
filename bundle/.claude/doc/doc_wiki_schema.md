@@ -7,7 +7,7 @@ retrieval のコスト順序を定める。**vault へ書く直前**（ページ
 
 `lifecycle` の値・序列・判定手順だけはここに無い。唯一の正典は `~/.claude/doc/doc_wiki_lifecycle_rubric.md`
 （→ Confidence and Lifecycle 節）。**値の一覧をこの doc や skill 本文へ書き写さないこと** —— 正典が 2 箇所に
-分裂していたことが 2026-08-12 に見つかった 66 ページの誤値（`active`）の直接原因だった。
+分かれると skill ごとに違う値が書かれる。
 
 ## 見出し索引
 
@@ -362,9 +362,7 @@ Things that are unresolved or need more sources.
 ## Reserved System Tags
 
 タグの規約（**1 ページ最大 5 タグ**・**lowercase / hyphen 区切り**・既存タグの再利用を優先）は
-**この doc が正典**。⚠️ **`$OBSIDIAN_VAULT_PATH/_meta/taxonomy.md` を読もうとしないこと・そこから
-タグ語彙や上限を採らないこと** —— そのファイルはどの vault にも存在しない。新しいタグを付けるときは
-`index.md` の既存タグを見て揃える。
+**この doc が正典**。新しいタグを付けるときは `index.md` の既存タグを見て揃える。
 
 ⚠️ **書き込み時に走る機械検査は無い。** 上限・形式の検出は `wiki-lint` の Check 8a
 （Over-Tagged and Malformed Tags）が**監査時に報告するだけ**で、書く瞬間には誰も止めてくれない。
@@ -407,19 +405,21 @@ Example:
 
 (`^[...]` renders cleanly in Obsidian, never collides with `[[wikilinks]]`, and keeps one bullet one bullet.)
 
-**三種とも明示的に打つ。分母がそれで確定する。** 2026-09-21 までは extracted を「無印が既定」と
-していた。やめた理由は省筆の是非ではなく、**無印を既定にすると `provenance` の分母が散文の定義に
-なる**こと —— 「コードフェンス・表・見出し・引用を除いた箇条書き＋文」を数える実装は毎回ずれる。
-ai-settings vault で同じページの inferred 比率が、分母の取り方だけで **0.07 と 0.43** に割れた
-（2026-09-21 実測）。三種を打てば分母は「マーカーの総数」になり、`grep -c` で一致する。
-
-規約を実態へ寄せた側面もある: 同日の実測で、どの skill も指示していないのに `^[extracted]` が
-**53/69 ページ・1,229 箇所**へ自発的に打たれていた。
+**三種とも明示的に打つ。分母がそれで確定する。** 無印を既定にすると `provenance` の分母が散文の
+定義になり、数える実装ごとに比率がずれる。三種を打てば分母は「マーカーの総数」になる。
 
 **主張でない行は打たない。** 見出し・表・コードフェンス・導入文・リンク集は無印のまま残し、分母にも
 入れない。`provenance` を計算する側は 3 つのマーカーの出現数だけを数える。
 
-**Frontmatter summary:** Optionally surface the rough mix at the page level so the user can scan for speculation-heavy pages without reading them:
+**数え方は暗算しない。** 書き手はページを書いた後にこの 1 行を走らせ、出た数を合計で割って写す
+（コードフェンスと inline code の中は例なので除く。wiki-lint の検査も同じ規則で数える）:
+
+```bash
+awk '/^[[:space:]]*(```|~~~)/{f=!f;next} !f' page.md | sed 's/`[^`]*`//g' \
+  | grep -o '\^\[\(extracted\|inferred\|ambiguous\)\]' | sort | uniq -c
+```
+
+**Frontmatter summary:** Optionally surface the mix at the page level so the user can scan for speculation-heavy pages without reading them:
 
 ```yaml
 provenance:
@@ -428,7 +428,7 @@ provenance:
   ambiguous: 0.03
 ```
 
-These are best-effort numbers written by the ingest skill at create/update time. `wiki-lint` recomputes them and flags drift. The block is optional — a page with neither the block nor any marker is treated as fully extracted by convention.
+The ingest skill writes them at create/update time from the count above. `wiki-lint` recomputes them with a script and flags drift. The block is optional — a page with neither the block nor any marker is treated as fully extracted by convention.
 
 ## Typed Relationships
 
@@ -549,7 +549,7 @@ lifecycle_changed: 2026-08-12     # ISO date the rank last changed
 > **`~/.claude/doc/doc_wiki_lifecycle_rubric.md`** — `lifecycle` を付ける / 変える前に必ず読む。
 
 **この doc にも skill 本文にも値の一覧を書き写さないこと。** 2 つ目の写しができた瞬間に enum が漂流し、
-新しいページが隣のページを真似て誤値を増やす（それが 66 ページの `active` の発生経路だった）。
+新しいページが隣のページを真似て誤値を増やす。
 
 `stale` は `lifecycle` の値ではなく、`evidence_at`（無ければ `updated`）に対する計算上のオーバーレイ。
 rank が変わったときは `lifecycle_changed` を更新する。更新時は既存の rank を維持し、**新しい証拠が来たときだけ**
@@ -590,6 +590,20 @@ source_quality_score = avg(quality score per distinct source_id)
 | Session transcript | `<agent>/<session-id>` |
 | Other | `<canonical-url>` |
 
+**`sources:` の行をバケットへ当てる既定**（wiki-lint のスクリプトもこの規則で数える。外れる出典は
+lint に `--bucket <source_id>=<bucket>` で上書きさせ、表そのものは変えない）:
+
+- **リポジトリを読んだ出典は 1 リポジトリ ＝ 1 出典・`repository`**。`projects/<name>`・その
+  リポジトリ内の相対パス（`lib/x.sh`、`tools/dq (write.go)` のような注記付きも）・`~/source/note/<repo>`
+  は同じリポジトリなら 1 件に畳む。相対パスの持ち主は同じ `sources:` の `projects/<name>`、無ければ vault 名
+- リポジトリの外の手元パス（`~/.gitconfig`・`~/.local/...`）はまとめて 1 出典・`repository`
+- URL: arXiv / DOI は `paper`、`github.com/<owner>/<repo>` は `repository`（issues / discussions / pull は
+  `forum`）、`*.gov` は `official`、`docs.` / `developer.` / `learn.` で始まるホストか `/docs/` 配下は
+  `documentation`、Qiita / Zenn / Medium / note / dev.to / はてなブログは `blog`、Stack Overflow /
+  HN / Reddit は `forum`、それ以外の URL は `unknown`
+- vault 内の他ページ（`concepts/…md` 等）は `llm_generated`、会話・セッションを指す文は
+  `session_transcript`、それ以外の文は `unknown`
+
 **Per-skill defaults** (ingest skills compute this automatically):
 
 The `lifecycle` column is a **floor, not a fixed value**. Every skill starts a new page at `draft`; if the evidence for the page's claim is already in the body, promote it in the same pass per the rubric and fill `lifecycle_evidence` / `evidence_at`. Leaving a well-evidenced page at `draft` is a lossy default, not a safe one — but it is still the correct default when you have not checked.
@@ -617,8 +631,8 @@ The `tier:` field controls which pages get updated on each ingest pass and their
 
 ### Assignment rules
 
-これがこのバンドルで**唯一**の閾値定義。他の場所に別の数字を書かないこと（`≤1` と `0` が別ファイルに併存していた
-のを 2026-08-12 に統一した）。
+これがこのバンドルで**唯一**の閾値定義。他の場所に別の数字を書かないこと（別ファイルに別の値が併存すると
+読む側が割れる）。
 
 - **New pages:** default to `tier: supporting`
 - **Promote to `core`:** when a page accumulates ≥5 incoming wikilinks, or sits in a bridge position between clusters
@@ -641,7 +655,7 @@ Reading the vault is the dominant cost of every read-side skill. Use the cheapes
 
 | Need | Primitive | Relative cost |
 |---|---|---|
-| Does a page exist? What's its title/category/tags? | Read `index.md`; `Grep` frontmatter blocks (scope with a pattern that targets `^---` blocks at file heads) | **Cheapest** |
+| Does a page exist? What's its title/category/tags? | `Grep` `index.md` for the term; `Grep` frontmatter blocks (scope with a pattern that targets `^---` blocks at file heads). Read `index.md` whole only for a question about the vault's shape | **Cheapest** |
 | 1–2 sentence preview of a page | Read the `summary:` field in its frontmatter | **Cheap** |
 | A specific claim or section inside a page | `Grep -A <n> -B <n> "<term>" <file>` — returns only the matching lines plus context | **Medium** |
 | Whole-page content | `Read <file>` | **Expensive** — last resort |

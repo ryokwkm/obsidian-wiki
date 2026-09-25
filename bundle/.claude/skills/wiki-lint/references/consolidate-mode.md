@@ -56,10 +56,9 @@ For each orphan page from Check 1, after excluding the two false positives named
 
 ### Action 3: Flag stale ranked pages
 
-**This action never writes `lifecycle`.** Not because promotion is human-only — the rubric
-(`~/.claude/doc/doc_wiki_lifecycle_rubric.md`) assigns ranks 1–4 to AI — but because
-`--consolidate` does not read the page body, and a rank is decided by the evidence in the
-body. It may only annotate.
+**This action never writes `lifecycle`.** A rank is decided by the evidence in the page body
+(`~/.claude/doc/doc_wiki_lifecycle_rubric.md`), and `--consolidate` does not read bodies.
+It may only annotate.
 
 Threshold is **90 days** for every tier — the same value as Rule 12c, never a local variant.
 Compute from `evidence_at`, falling back to `updated:`.

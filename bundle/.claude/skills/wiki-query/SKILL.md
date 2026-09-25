@@ -9,11 +9,7 @@ You are answering questions against a compiled Obsidian wiki, not raw source doc
 
 ## This skill is READ-ONLY
 
-`wiki-query` answers questions. It MUST NOT create or modify any wiki content. The ONLY write it may perform is the single Step 6 append to `log.md`.
-
-Never, even when a change seems obviously helpful:
-- create or edit pages under `concepts/`, `entities/`, `skills/`, `references/`, `synthesis/`, `journal/`, or `projects/`
-- modify `index.md`, `hot.md`, `_insights.md`, or `.manifest.json`
+`wiki-query` answers questions and leaves wiki content unchanged: its only write is the Step 6 append to `log.md`. Pages, `index.md`, `hot.md`, `_insights.md` and `.manifest.json` stay untouched even when a change looks helpful, because the writer skills own those files' invariants.
 
 If the user's message contains a new finding, an action request ("save this", "ban X", "record that"), or anything implying a change, **do not perform it.** Answer the question, PROPOSE the change, and route the user to the right skill:
 - quick note / gotcha → `wiki-capture --quick`
@@ -25,7 +21,7 @@ If the user's message contains a new finding, an action request ("save this", "b
 1. **Resolve config.** Use `$OBSIDIAN_VAULT_PATH` if it is already exported (shell rc, direnv, parent process) — that wins. If it is unset, walk up from CWD to `$HOME` for the first `.env` containing `OBSIDIAN_VAULT_PATH=` and use that value. If neither yields a path, stop and tell the user: `No vault config found. Set OBSIDIAN_VAULT_PATH in .claude/settings.json (env), a shell rc, or direnv.` Never hard-code a vault path and never borrow another project's vault. This works from any project directory.
 2. **Read the QMD variables from the same config** — `QMD_WIKI_COLLECTION`, `QMD_TRANSPORT`, `QMD_CLI_SEARCH_MODE`, `QMD_PAPERS_COLLECTION` — before deciding a retrieval strategy. If `QMD_WIKI_COLLECTION` is set, treat QMD as available subject only to the transport check in Step 2b. If it is empty or unset, say briefly why QMD is being skipped and take the grep path; it is fully functional.
 3. **Read nothing from the vault yet.** Classify the question first (Step 1), then climb the ladder from its cheap end (Step 2 onward). Two files in particular are not free and must not be opened reflexively:
-   - **`index.md` runs 40–50 kB in a mature vault.** Grep it for the query terms (Step 2). Read it whole only when the question is about the wiki's *shape* — "what's in here", "what areas do I cover".
+   - **`index.md` runs to tens of kilobytes in a mature vault.** Grep it for the query terms (Step 2). Read it whole only when the question is about the wiki's *shape* — "what's in here", "what areas do I cover".
    - **`hot.md` holds no distilled knowledge.** It is a cache of the last few operations and open threads, so for a question about a *topic* it costs bytes and answers nothing. It is the last rung, not the first — see Step 4c.
 
 ## Visibility Filter (optional)
@@ -68,7 +64,7 @@ Also decide the **mode**:
 
 Build a candidate set *without opening any page bodies*:
 
-- **`index.md` is the first filter — grep it, don't read it.** It lists every page with a one-line description and tags, and it is the largest single file in the vault. `Grep -n "<query-term>" $OBSIDIAN_VAULT_PATH/index.md` returns the handful of entry lines that matter for a few hundred bytes. Read it in full only when the question is about the wiki's overall scope, or when grep returns nothing and you need to see which categories exist before rephrasing.
+- **`index.md` is the first filter — grep it, don't read it.** It lists every page with a one-line description and tags. `Grep -n "<query-term>" $OBSIDIAN_VAULT_PATH/index.md` returns the handful of entry lines that matter for a few hundred bytes. Read it in full only when the question is about the wiki's overall scope, or when grep returns nothing and you need to see which categories exist before rephrasing.
 - Use `Grep` to scan page **frontmatter only** for title, tag, alias, and summary matches. A pattern like `^(title|tags|aliases|summary):` scoped to vault `.md` files is far cheaper than content grep.
 - Collect the top 5–10 candidate page paths ranked by:
   1. Exact title or alias match

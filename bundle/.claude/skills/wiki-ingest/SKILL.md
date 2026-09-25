@@ -12,7 +12,7 @@ You are ingesting source documents into an Obsidian wiki. Your job is not to sum
 1. **Resolve config** — use `OBSIDIAN_VAULT_PATH` if it is already exported (shell rc, direnv, parent process). If it isn't, walk up from CWD toward `$HOME` and take the first `.env` containing a `OBSIDIAN_VAULT_PATH=` line. If neither exists, stop and tell the user to set `OBSIDIAN_VAULT_PATH` in `.claude/settings.json` (`env` block), a shell rc, or direnv — never hard-code a path and never fall back to a global config. From the same source read `OBSIDIAN_SOURCES_DIR`, `OBSIDIAN_LINK_FORMAT` (default: `wikilink`), and `WIKI_STAGED_WRITES`. Only read the specific variables you need — do not log, echo, or reference any other values from these files.
 2. **Check `WIKI_STAGED_WRITES`** — if set to `true`, all new and updated category pages go to `_staging/<category>/` instead of their final location. Tell the user at the start of the ingest: "Staged writes mode is enabled — pages will land in `_staging/` for your review. Promotion is manual: move `_staging/<category>/page.md` to its final location, and apply each `*.patch.md` to the page named in its `patch_target:` before deleting the patch."
 3. Read `.manifest.json` at the vault root to check what's already been ingested
-4. Read `index.md` to understand current wiki content
+4. Grep `index.md` for the source's key concepts to see what already exists; read it whole only if the greps come back empty
 5. Read the tail of `log.md` to understand recent activity — `grep '^- \[' "$OBSIDIAN_VAULT_PATH/log.md" | tail -30`. **Never read `log.md` whole**: it is append-only and unbounded (100 kB+ ≒ 25k tokens on an active vault). Grep for entry lines rather than plain `tail` — the file contains blank lines, so a raw `tail -N` returns fewer than N entries.
 
 When writing internal links in Step 5, apply the link format described in `~/.claude/doc/doc_wiki_schema.md` (Link Format) according to the `OBSIDIAN_LINK_FORMAT` value you read.
@@ -123,14 +123,9 @@ When the source is a **web URL** (`/ingest-url <url>`, "add this URL", "ingest t
 
 ### Multimodal branch (images)
 
-When the source is an image, your extraction job is interpretive — you're reading visual content, not text. Walk the image methodically:
+For an image source, text you transcribe verbatim (UI labels, slide bullets, handwriting, code in screenshots) is the only `^[extracted]` content. The structure and concepts you read from it are `^[inferred]`; anything unreadable, cropped, or directionally unclear is `^[ambiguous]` — call it out.
 
-1. **Transcribe** any visible text verbatim (UI labels, slide bullets, whiteboard handwriting, code snippets in screenshots). This is the only *extracted* content from an image.
-2. **Describe structure** — for diagrams, list the boxes/nodes and the arrows/edges. For screenshots, name the app or context if recognizable.
-3. **Extract concepts** — what is the image *about*? What ideas, entities, or relationships does it convey? Most of this is `^[inferred]`.
-4. **Note ambiguity** — handwriting you can't read, arrows whose direction is unclear, cropped content. Use `^[ambiguous]` and call it out.
-
-Vision is interpretive by nature, so image-derived pages will skew heavily toward `^[inferred]`. That's expected — the provenance markers exist precisely to surface this. Don't pretend an image's "meaning" was extracted when you really inferred it.
+Image-derived pages therefore skew toward `^[inferred]`, and that is expected.
 
 For PDFs that are mostly images (scanned docs, slide decks exported to PDF), use `Read pages: "N"` to pull specific pages and treat each page as an image source.
 
@@ -156,7 +151,7 @@ Research papers (arXiv/conference PDFs) carry their substance in figures, equati
    - **Mermaid is the dependency-free fallback.** If PyMuPDF/poppler isn't available or a figure can't be extracted, draw the architecture as a Mermaid diagram instead — Obsidian renders Mermaid fenced code blocks natively with no dependencies. `![[<source>.pdf#page=N]]` (the whole source page) is another no-extract option.
 3. **Keep the math as math.** Set the 1–3 core equations as `$$…$$` display LaTeX, not backtick code.
 4. **Tabulate results.** Render headline benchmark numbers as a markdown table, not a comma-separated blob.
-5. **Write the page with the Paper Deep-Dive Template** (`references/paper-template.md`) into `references/`, in addition to the distilled concept/entity cross-links. This is the deliberate exception to "aim for 10–15 small pages" (Step 4) — a paper earns one rich, self-contained page.
+5. **Write the page with the Paper Deep-Dive Template** (`references/paper-template.md`) into `references/`, in addition to the distilled concept/entity cross-links. This is the deliberate exception to splitting a source into small pages (Step 4) — a paper earns one rich, self-contained page.
 
 See the *Paper Extraction Frame* in `references/ingest-prompts.md` for the reading checklist.
 
@@ -245,7 +240,7 @@ If the source is not project-specific, put everything in global categories.
 
 ### Step 4: Plan Updates
 
-Before writing anything, plan which pages to update or create. Aim for 10-15 pages per ingest. For each:
+Before writing anything, plan which pages to update or create — one per distinct concept, entity or procedure the source actually carries, merged into existing pages where they exist. For each:
 - Does this page already exist? (Check `index.md` and use Glob to search `OBSIDIAN_VAULT_PATH`)
 - If it exists, what new information does this source add?
 - If it's new, which category does it belong in?
@@ -332,7 +327,7 @@ tier: supporting              # default for new pages; promote to core when ≥5
 
 Compute `base_confidence` using the formula in `~/.claude/doc/doc_wiki_schema.md` (Confidence and Lifecycle) — the quality buckets and `source_id` rules live there:
 - Count distinct source_ids for this page
-- Classify each source's quality bucket
+- Classify each source's quality bucket per the bucket defaults in that doc
 - `base_confidence = min(N/3, 1.0) × 0.5 + avg_quality × 0.5`
 
 When **updating** an existing page, recompute `base_confidence` only if sources changed materially (source added or removed). Do not rewrite it on every update — this avoids git churn.
@@ -351,7 +346,7 @@ Keep `lifecycle` unchanged on update **unless this pass brought new evidence**. 
 - Inferred claims get a trailing `^[inferred]`
 - Ambiguous/contested claims get a trailing `^[ambiguous]`
 - Headings, tables, code fences and link lists stay unmarked and are **not** counted
-- After writing the page, count the markers (the denominator is their total, never the prose line count) and write them to a `provenance:` frontmatter block (extracted/inferred/ambiguous summing to ~1.0). When updating an existing page, recompute and update the block.
+- After writing the page, count the markers with the recipe in that section (the denominator is their total, never the prose line count) and write them to a `provenance:` frontmatter block (extracted/inferred/ambiguous summing to ~1.0). When updating an existing page, recompute and update the block.
 
 ### Step 6: Update Cross-References
 

@@ -11,7 +11,7 @@ You are extracting knowledge from the user's past Claude Code conversations and 
 
 1. **Resolve config** — use `OBSIDIAN_VAULT_PATH` if it is already exported (shell rc / direnv / parent process). Otherwise walk up from CWD to `$HOME` for a `.env` containing `OBSIDIAN_VAULT_PATH=` and take the first match. If neither exists, stop and tell the user to set it in `.claude/settings.json` (`env`), shell rc, or direnv — never hard-code a path or guess a vault. Read `CLAUDE_HISTORY_PATH` the same way (defaults to `~/.claude`)
 2. Read `.manifest.json` at the vault root to check what's already been ingested
-3. Read `index.md` at the vault root to know what the wiki already contains
+3. Grep `index.md` at the vault root for the topics you extract to find existing pages; read it whole only if the greps come back empty
 4. **Project Scoping** — read `WIKI_SKIP_PROJECTS` from the environment: comma-separated substrings, unset or empty means skip nothing. Exclude any project directory whose name contains one of them from **every** step below (scan, delta, sampling, manifest writes). If the user names extra projects to skip this run, add them. Apply the exclusion **once, uniformly** — don't hand-write `grep -v` filters into individual commands, which drifts between the scan and manifest steps.
 
 ## Ingest Modes
@@ -30,18 +30,14 @@ This is usually what you want — the user ran a few new sessions and wants to c
 > "canonicalize" the manifest itself** — project-relative keys are correct as they stand.
 > When a lookup by exact key misses, retry by basename and accept a path-suffix match
 > before concluding the source is new. Rules and rationale:
-> `~/.claude/doc/doc_wiki_schema.md`. Do this inline — this bundle has no manifest helper script.
+> `~/.claude/doc/doc_wiki_schema.md`.
 
-### No Pre-extraction Step — Read the Raw JSONL
+### Reading the Raw JSONL
 
 Raw JSONL files are 80-90% noise: `tool_use` blocks, `thinking` blocks, `progress` events, and
-`file-history-snapshot` entries dominate by byte count. **This bundle ships no extractor** — filter
-the JSONL yourself while reading it (Step 3 says how) and budget for the larger files: expect to
-characterize fewer sessions per run than the sampling heuristic below suggests.
-
-If a pre-extracted file happens to exist at `~/.claude/extracted/<project>/<session-id>.json`
-— i.e. the user runs their own extractor — prefer it over the raw JSONL. Treat its absence as the
-normal case, never as a failure to narrate.
+`file-history-snapshot` entries dominate by byte count. Filter while reading (Step 3 says how) and
+budget for the larger files: expect to characterize fewer sessions per run than the sampling
+heuristic below suggests.
 
 ### Conversation Sampling Heuristic
 
@@ -198,11 +194,7 @@ The `MEMORY.md` index file in each project is a quick summary — read it first 
 
 ## Step 3: Parse Conversation JSONL
 
-The raw JSONL at `~/.claude/projects/<proj>/<uuid>.jsonl` is the normal input. A `Glob` for
-`~/.claude/extracted/<proj>/<uuid>.json` is worth one cheap check — if a user-run extractor left a
-compact file there, iterate `turns[].{role, text}` from it instead and skip the filtering below.
-**Expect that file to be absent** (nothing in this bundle produces it) and go straight to the raw
-JSONL when it is.
+The input is the raw JSONL at `~/.claude/projects/<proj>/<uuid>.jsonl`.
 
 **Reading raw JSONL:** Each line is a JSON object:
 
@@ -327,7 +319,7 @@ On update, leave `lifecycle` and `lifecycle_changed` unchanged unless the transc
 - **Memory files** are mostly extracted — the user wrote them by hand and they're already distilled. Treat memory-derived claims as extracted unless you're stitching together claims from multiple memory files.
 - **Conversation distillation** is mostly inferred. You're synthesizing a coherent claim from many turns of dialogue, often filling in implicit reasoning. Apply `^[inferred]` liberally to synthesized patterns, generalizations across sessions, and "what the user really meant" interpretations.
 - Use `^[ambiguous]` when the user changed their mind across sessions or when assistant and user contradicted each other and the resolution is unclear.
-- Write a `provenance:` frontmatter block on every new/updated page summarizing the rough mix.
+- Write a `provenance:` frontmatter block on every new/updated page from the actual marker counts (the counting recipe is in the same schema section; the denominator is the total number of markers).
 
 ## Step 6: Update Manifest, Journal, and Special Files
 

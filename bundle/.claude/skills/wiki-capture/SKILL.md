@@ -16,7 +16,7 @@ This skill has two modes:
 
 Trigger when invoked as `/wiki-capture --quick`, or by "quick capture" / "capture this finding" / "save this bug fix" / "save this gotcha" / "drop this to raw" / "quick save to wiki".
 
-**There is no automatic invocation.** Quick mode runs only when someone calls it — the bundle registers no Stop hook, so nothing fires this skill at session end. Do not wait for an automatic capture to happen; call `/wiki-capture --quick` while the finding is still in the conversation.
+Quick mode runs only when invoked, so call it while the finding is still in the conversation.
 
 **Speed contract:** Inline only. No subagents. No manifest/`index.md`/`log.md`/`hot.md` writes. Target: <60 seconds. Promotion to full wiki pages happens later via `/wiki-ingest`.
 
@@ -50,8 +50,8 @@ Trigger when invoked as `/wiki-capture --quick`, or by "quick capture" / "captur
 ## Before You Start
 
 1. **Resolve config** — same as Quick Mode step 1; additionally read `OBSIDIAN_LINK_FORMAT` (default: `wikilink`).
-2. Read `$OBSIDIAN_VAULT_PATH/index.md` to understand existing wiki content (avoid duplicates)
-3. Read `$OBSIDIAN_VAULT_PATH/hot.md` if it exists — it gives context on recent activity
+2. Grep `$OBSIDIAN_VAULT_PATH/index.md` for the concepts you are about to write to find existing pages (Retrieval Primitives in `~/.claude/doc/doc_wiki_schema.md`); read it whole only if the greps come back empty
+3. Read `$OBSIDIAN_VAULT_PATH/hot.md` if it exists — Step 6 edits it and takes its `old_string` from this read
 
 When writing internal links in Step 5, apply the `OBSIDIAN_LINK_FORMAT` value per the Link Format rules in `~/.claude/doc/doc_wiki_schema.md` (`wikilink` → `[[path/to/page|display]]`; `markdown` → `[display](relative/path.md)` computed from the current file's directory).
 

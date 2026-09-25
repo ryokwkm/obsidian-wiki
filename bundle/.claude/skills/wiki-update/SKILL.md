@@ -17,7 +17,7 @@ When writing internal links in Steps 4–5, apply the format that the resolved `
 
 ## Operating Rules
 
-These govern *how* this skill runs, not what it writes. They used to sit in the always-loaded CLAUDE.md fragment; they live here so they are read only when the skill actually runs.
+These govern *how* this skill runs, not what it writes.
 
 1. **Delegate, then report in one line.** When this skill runs at the end of some other task, the main session finishes its answer first and runs the skill in a `fork` subagent (the fork inherits the context, so nothing needs re-explaining, and the vault work stays out of the main context). The only thing that reaches the user is Step 7's single line. Doing it the other way round pulls the answer toward the vault work just done.
 2. **Commit the vault as its own repository.** When the vault is a separate git repository, stage with an explicit path — `git -C "$OBSIDIAN_VAULT_PATH" add <paths you wrote>` — and commit there. Never run a bare `git add` from the project: it sweeps the parent repository in. Vault changes nobody commits are picked up by nobody, and end up inside some later, unrelated commit.
@@ -139,18 +139,13 @@ updated: TIMESTAMP
 Use [[wikilinks]] to connect to other pages.
 ```
 
-**`provenance` と `base_confidence` は必ず計算して書く。テンプレの数字を残さない。**
-2026-09-02 の lint で、この 2 つが vault 全体（32 ページ）で式から外れていた。原因は 2 つとも
-「それらしい定数を写した」こと ——
+**`provenance` と `base_confidence` はテンプレや近いページの数字を写さず、毎回計算して書く。**
 
-- `provenance` は本文の 3 マーカーを**実際に数える**。**分母はマーカーの総数**で、散文の行数ではない
-  （2026-09-21 に「箇条書き＋文」方式を廃止 —— 数える実装ごとに答えが変わり、同じページが
-  inferred 0.07 と 0.43 に割れた）。旧テンプレが持っていた `0.6 / 0.35 / 0.05` は
-  wiki-capture が持つ raw 用キャリブレーション表の 1 行で、**あの表は `_raw/` 専用**
-  （その表自身が "Never carry a number from this table onto a promoted page" と明記している）
-- `base_confidence` は `~/.claude/doc/doc_wiki_schema.md` の式の出力**だけ**。証拠が強いページを
-  手心で上げてはいけない —— 証拠の強さを載せる軸は `lifecycle` で、そちらに既に入っている。
-  二重に載せると `lifecycle` と相関して情報が減るうえ、Rule 12e が毎回ドリフトとして鳴る
+- `provenance` は `~/.claude/doc/doc_wiki_schema.md`（Provenance Markers）の 1 行レシピでマーカーを数え、
+  その出力を写す。分母はマーカーの総数で、散文の行数ではない（散文を数えると実装ごとに答えが割れる）。
+  wiki-capture の `_raw/` 用キャリブレーション表は本ページへ持ち込まない
+- `base_confidence` は同じ doc の式の出力だけ（出典のバケットは同 doc の既定に従う）。証拠の強さは
+  `lifecycle` の軸が担うので、ここで上乗せしない（二重に載せると Rule 12e がドリフトとして鳴る）
 
 **Write a `summary:` frontmatter field** on every new/updated page (1–2 sentences, ≤200 chars), using `>-` folded style. For project sync, a good summary answers "what does this page tell me about the project I wouldn't guess from its title?" This field powers cheap retrieval by `wiki-query`.
 
@@ -160,7 +155,7 @@ Use [[wikilinks]] to connect to other pages.
 - **Inferred** (`^[inferred]`) — *why* a decision was made, design rationale, trade-offs, "the team chose X because Y" — unless a commit message, doc, or ADR states it explicitly.
 - **Ambiguous** (`^[ambiguous]`) — when the code and docs disagree, or when there's clearly an in-progress migration with two patterns living side by side.
 
-Compute the rough fractions and write the `provenance:` block on every new/updated page.
+Count the markers with that recipe and write the resulting fractions to the `provenance:` block on every new/updated page.
 
 ### Updating vs creating
 

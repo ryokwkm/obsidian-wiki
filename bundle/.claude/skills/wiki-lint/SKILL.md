@@ -12,12 +12,12 @@ You are performing a health check on an Obsidian wiki. Your goal is to find and 
 ## Before You Start
 
 1. **Resolve the vault path** — use `$OBSIDIAN_VAULT_PATH` if it is already exported; otherwise walk up from CWD to `$HOME` looking for a `.env` that contains `OBSIDIAN_VAULT_PATH=` and take the first one. If neither exists, stop and tell the user to set `OBSIDIAN_VAULT_PATH` in `.claude/settings.json` (`env`), a shell rc, or direnv. Never fall back to a hard-coded path — one repo, one vault.
-2. Read `index.md` for the full page inventory
+2. Take the page inventory from the Check 0 script rather than reading `index.md` whole (Check 6 compares `index.md` against it)
 3. Read the tail of `log.md` for recent activity context — `grep '^- \[' "$OBSIDIAN_VAULT_PATH/log.md" | tail -30`. **Never read `log.md` whole**: it is append-only and unbounded (100 kB+ ≒ 25k tokens on an active vault). Grep for entry lines rather than plain `tail` — the file contains blank lines, so a raw `tail -N` returns fewer than N entries.
 
 ## Lint Checks
 
-Run these checks in order. Report findings as you go.
+Run these checks in order; the deliverable is the single report described under Output Format.
 
 ### 0. Build the link graph — run this first
 
@@ -155,14 +155,19 @@ Findings go in the `Index Issues` section (sample lines in `references/output-fo
 
 Check whether pages are being honest about how much of their content is inferred vs extracted. The marker convention (`^[extracted]` / `^[inferred]` / `^[ambiguous]` — every claim carries one) and the optional `provenance:` frontmatter block are defined in `~/.claude/doc/doc_wiki_schema.md`.
 
-**How to check:**
-- For each page with a `provenance:` block or any marker, count the three markers. **The denominator is their total — not the page's prose.** Never re-derive a "sentences and bullets" denominator: it is not reproducible (the same page came out at inferred 0.07 vs 0.43 depending on how it was counted)
-- Compute fractions (`extracted`, `inferred`, `ambiguous`) over that total
+**How to check:** take the fractions from the metrics script — do not count markers by hand (hand counts disagree with each other):
+
+```bash
+python3 ~/.claude/skills/wiki-lint/scripts/frontmatter_metrics.py "$OBSIDIAN_VAULT_PATH"
+```
+
+It prints JSON. Each entry under `pages` has `provenance` = `{extracted, inferred, ambiguous, n_markers, stored, drift_flag}` (`null` when the page has no marker). The denominator is the marker total, with markers inside code excluded. The same run feeds Check 8 (`clusters`) and Rule 12e (`base_confidence`), so run it once.
+
 - Apply these thresholds:
   - **AMBIGUOUS > 15%**: flag as "speculation-heavy" — even 1-in-7 claims being genuinely uncertain is a signal the page needs tighter sourcing or should be moved to `synthesis/`
   - **INFERRED > 40% with no `sources:` in frontmatter**: flag as "unsourced synthesis" — the page is making connections but has nothing to cite
   - **Hub pages** (top 10 by incoming count — take these from the Check 0 graph, do not re-derive) with INFERRED > 20%: flag as "high-traffic page with questionable provenance" — errors on hub pages propagate to every page that links to them
-  - **Drift**: if the page has a `provenance:` frontmatter block, flag it when any field is more than 0.20 off from the recomputed value
+  - **Drift**: `drift_flag` is true — the stored `provenance:` block is more than 0.20 off the recomputed value in some field
 - **Skip** pages with no `provenance:` frontmatter and no markers — treated as fully extracted by convention
 
 **How to fix:**
@@ -175,12 +180,7 @@ Check whether pages are being honest about how much of their content is inferred
 
 Checks whether pages that share a tag are actually linked to each other. Tags imply a topic cluster; if those pages don't reference each other, the cluster is fragmented — knowledge islands that should be woven together.
 
-**How to check:**
-- For each tag that appears on ≥ 5 pages:
-  - `n` = count of pages with this tag
-  - `actual_links` = count of wikilinks between any two pages in this tag group (check both directions)
-  - `cohesion = actual_links / (n × (n−1) / 2)`
-- Flag any tag group where cohesion < 0.15 and n ≥ 5
+**How to check:** read `clusters` from the Check 7 script run. It lists every tag on ≥ 5 pages with `n`, `linked_pairs` (pairs of pages in the group linked in either direction — a pair counts once) and `cohesion = linked_pairs / (n × (n−1) / 2)`. Flag any tag whose cohesion is below 0.15.
 
 **How to fix:**
 - Report the cluster with its cohesion score. Weaving it together means adding links between pages in the group — that is a body write, so do it deliberately: use the notation each page already uses, and add a few links per page rather than cross-linking every pair
@@ -193,9 +193,7 @@ lowercase, hyphen-separated, reusing existing tags where possible. `visibility/`
 reserved group and do **not** count toward the 5.
 
 Nothing checks the limit at write time, so a vault that grew without audits carries a
-backlog (measured: 27 of 152 tagged pages over the limit). **Never take the limit or a
-tag list from a taxonomy file** — the doc above is the only authority, and
-`_meta/taxonomy.md` exists in no vault.
+backlog. The doc above is the only authority for the limit and the vocabulary.
 
 **How to check:**
 - Grep frontmatter for `^tags:` — handle **both** the inline `[a, b]` form and the
@@ -297,7 +295,7 @@ The allowed set — ranked and unranked — is in the rubric (§序列 / §序�
 
 **Legacy values (a vault not yet converted to the rubric):** `{active, stable}` predate the rubric. Report them as **one warning line carrying a count**, never one finding per page — per-page findings drown the whole report.
 
-**How to fix:** n/a — `--fix` never writes `lifecycle`. Not because "only a human may set it" (the rubric moved that line: AI sets ranks 1–4), but because **lint does not read the page body**, and the rank is decided by the evidence in the body (rubric R1–R4). Only a skill that has the body in context may set it.
+**How to fix:** n/a — `--fix` never writes `lifecycle`: the rank is decided by the evidence in the page body (rubric R1–R4), and lint does not read bodies. Only a skill that has the body in context may set it.
 
 #### Rule 12b — `base_confidence` range
 
@@ -333,9 +331,9 @@ Staleness is never stored — it is computed at read time from `evidence_at` (fa
 
 #### Rule 12e — Confidence drift
 
-**How to check:** For pages that have both `base_confidence:` and `sources:` in frontmatter, recompute `base_confidence` using the formula and source-quality table in `~/.claude/doc/doc_wiki_schema.md`. If the stored value differs from the recomputed value by more than 0.05, flag it as drift.
+**How to check:** read `base_confidence` from the Check 7 script run (`null` unless the page has both `base_confidence:` and `sources:`). Each entry has `stored`, `recomputed`, `drift`, `drift_flag` (|drift| > 0.05) and `sources` — how each line was folded into a `source_id` and bucket per the defaults in `~/.claude/doc/doc_wiki_schema.md`. Before flagging, read the `sources` of the flagged pages: when a bucket is plainly wrong for a source (a vendor doc classed `unknown`), rerun with `--bucket <source_id>=<bucket>` rather than accepting the number.
 
-**How to fix (`--fix` only):** Rewrite the `base_confidence` field to the recomputed value. This is the **only rule** that mutates frontmatter automatically.
+**How to fix (`--fix` only):** rerun the script with `--fix-confidence` (plus the same `--bucket` overrides). It rewrites only the `base_confidence:` line of drifting pages. This is the **only rule** that mutates frontmatter automatically.
 
 #### Rule 12f — Evidence requirements for ranked pages
 
