@@ -71,6 +71,10 @@ class SourceIdTest(unittest.TestCase):
         got = fm.classify_sources(["lib/a.sh", "tools/dq (write.go / guard.go)"], default_project="ai-settings")
         self.assertEqual([(s["id"], s["bucket"]) for s in got], [("repo:ai-settings", "repository")])
 
+    def test_extensionless_repo_files_fold_to_the_repository(self):
+        got = self.ids(["projects/ai-settings", "Makefile", "Dockerfile"])
+        self.assertEqual(got, {"repo:ai-settings": "repository"})
+
     def test_home_paths_fold_per_repository(self):
         got = self.ids(["~/source/note/tools/llmtpl", "~/source/note/tools/llmtpl/main.go"])
         self.assertEqual(got, {"repo:tools/llmtpl": "repository"})

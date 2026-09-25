@@ -60,7 +60,8 @@ _PAPER_HOSTS = ("arxiv.org", "doi.org", "aclanthology.org", "openreview.net")
 _BLOG_HOSTS = ("qiita.com", "zenn.dev", "medium.com", "note.com", "dev.to", "hatenablog")
 _FORUM_HOSTS = ("stackoverflow.com", "stackexchange.com", "news.ycombinator.com", "reddit.com")
 _DOC_HOST_PREFIXES = ("docs.", "developer.", "developers.", "learn.")
-_WIKI_DIRS = ("concepts/", "entities/", "skills/", "references/", "synthesis/", "journal/")
+_EXTENSIONLESS_REPO_FILES = ("Makefile", "Dockerfile", "Justfile", "Rakefile", "Gemfile", "Brewfile")
+_WIKI_DIRS = ("concepts/","entities/", "skills/", "references/", "synthesis/", "journal/")
 
 
 def main() -> int:
@@ -237,7 +238,7 @@ def classify_one(src: str, project: str) -> tuple[str, str]:
         return src, "session_transcript"
     # `tools/dq (write.go / guard.go)` のように注記付きで書かれることがあるので先頭の語だけで判定する
     head = src.split()[0] if src.split() else ""
-    if "/" in head or re.search(r"\.\w+$", head):
+    if "/" in head or re.search(r"\.\w+$", head) or head in _EXTENSIONLESS_REPO_FILES:
         return f"repo:{project}", "repository"
     return src, "unknown"
 
