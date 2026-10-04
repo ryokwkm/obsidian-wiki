@@ -167,5 +167,51 @@ class VaultReportTest(VaultCase):
         self.assertEqual(rep["clusters"], {})
 
 
+class SummaryTest(unittest.TestCase):
+    def test_folded_block_joins_lines_with_a_space(self):
+        front = "title: A\nsummary: >-\n  一行目の途中で\n  折り返した要約。\ntags: [t]"
+        self.assertEqual(fm.read_summary(front), "一行目の途中で 折り返した要約。")
+
+    def test_plain_and_quoted(self):
+        self.assertEqual(fm.read_summary("summary: 素の要約 # コメント"), "素の要約")
+        self.assertEqual(fm.read_summary('summary: "引用内の # は本文"'), "引用内の # は本文")
+
+    def test_missing_returns_none(self):
+        self.assertIsNone(fm.read_summary("title: A"))
+
+
+class IndexReportTest(VaultCase):
+    def test_entries_are_compared_with_the_summary(self):
+        long_summary = "長" * 201
+        root = self.build({
+            "index.md": (
+                "# Wiki Index\n\n## Concepts\n"
+                "- [[concepts/ok]] — 要約どおり ( #wiki #qmd)\n"
+                "- [B](concepts/grown.md) — 要約に書き足した行\n"
+                "- [[concepts/nosum]] — 要約の無いページ\n"
+                f"- [[concepts/long]] — {long_summary}\n"
+                "- [[concepts/missing]] — 壊れたリンクは Check 2 の担当\n"
+            ),
+            "concepts/ok.md": page("title: OK\nsummary: 要約どおり"),
+            "concepts/grown.md": page("title: G\nsummary: >-\n  要約"),
+            "concepts/nosum.md": page("title: N"),
+            "concepts/long.md": page(f"title: L\nsummary: {long_summary}"),
+        })
+        rep = fm.analyse(root)
+        self.assertEqual(rep["index"], {
+            "entries": 4,
+            "entry_not_verbatim": [
+                {"page": "concepts/grown.md", "entry_chars": 9, "summary_chars": 2},
+                {"page": "concepts/nosum.md", "entry_chars": 8, "summary_chars": None},
+            ],
+        })
+        self.assertEqual(rep["summary_over_limit"], [{"page": "concepts/long.md", "chars": 201}])
+
+    def test_vault_without_index_still_reports_long_summaries(self):
+        rep = fm.analyse(self.build({"concepts/a.md": page(f"title: A\nsummary: {'長' * 201}")}))
+        self.assertIsNone(rep["index"])
+        self.assertEqual(rep["summary_over_limit"], [{"page": "concepts/a.md", "chars": 201}])
+
+
 if __name__ == "__main__":
     unittest.main()

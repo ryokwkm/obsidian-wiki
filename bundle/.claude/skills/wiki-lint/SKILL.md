@@ -115,7 +115,7 @@ Every page *should* have a `summary:` frontmatter field — 1–2 sentences, ≤
 **How to check:**
 - Grep frontmatter for `^summary:` across the vault
 - Flag pages without it, **but as a soft warning, not an error** — older pages predating this field are fine; the check exists to nudge ingest skills into filling it on new writes.
-- Also flag pages whose summary exceeds 200 chars.
+- Also flag pages whose summary exceeds 200 chars: take them from `summary_over_limit` in the metrics script run (Check 7 — run it once and reuse the output). Do not count characters by hand.
 
 **How to fix:**
 - Re-ingest the page, or manually write a short summary (1–2 sentences of the page's content).
@@ -147,7 +147,10 @@ Verify `index.md` matches the actual page inventory.
 
 **How to check:**
 - Compare pages listed in `index.md` to actual files on disk
-- Check that summaries in `index.md` still match page content
+- Each entry must be the page's `summary:` verbatim, optionally followed by a `( #tag)` suffix. The metrics script run lists the entries that are not under `index.entry_not_verbatim` (`null` when the vault has no `index.md`) — do not compare by eye. An entry that grows past its summary is how `index.md` bloated twice before.
+- When more than 3 entries are listed, report the count and 3 examples rather than every line.
+
+**How to fix:** copy the page's `summary:` into the entry — never the other way. If the summary is over 200 chars, shorten the summary first (Check 3a).
 
 Findings go in the `Index Issues` section (sample lines in `references/output-format.md`) and their total in `index_issues=N` on the `LINT` log entry.
 
@@ -161,7 +164,7 @@ Check whether pages are being honest about how much of their content is inferred
 python3 ~/.claude/skills/wiki-lint/scripts/frontmatter_metrics.py "$OBSIDIAN_VAULT_PATH"
 ```
 
-It prints JSON. Each entry under `pages` has `provenance` = `{extracted, inferred, ambiguous, n_markers, stored, drift_flag}` (`null` when the page has no marker). The denominator is the marker total, with markers inside code excluded. The same run feeds Check 8 (`clusters`) and Rule 12e (`base_confidence`), so run it once.
+It prints JSON. Each entry under `pages` has `provenance` = `{extracted, inferred, ambiguous, n_markers, stored, drift_flag}` (`null` when the page has no marker). The denominator is the marker total, with markers inside code excluded. The same run feeds Check 3a (`summary_over_limit`), Check 6 (`index`), Check 8 (`clusters`) and Rule 12e (`base_confidence`), so run it once.
 
 - Apply these thresholds:
   - **AMBIGUOUS > 15%**: flag as "speculation-heavy" — even 1-in-7 claims being genuinely uncertain is a signal the page needs tighter sourcing or should be moved to `synthesis/`

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""frontmatter の数値指標（provenance・base_confidence・tag cohesion）を計算する。
+"""frontmatter の数値指標（provenance・base_confidence・tag cohesion・summary の長さと index の逐語）を計算する。
 
 依存は標準ライブラリと同じディレクトリの linkgraph.py だけ。wiki-lint の
-Check 7（Provenance Drift）・Check 8（Fragmented Tag Clusters）・Rule 12e（Confidence drift）が
-読む数字をここで出す。
+Check 3a（Missing Summary）・Check 6（Index Consistency）・Check 7（Provenance Drift）・
+Check 8（Fragmented Tag Clusters）・Rule 12e（Confidence drift）が読む数字をここで出す。
 
-  provenance      : 本文の 3 マーカーの比率。分母はマーカー総数（コードフェンス・inline code 内は例なので数えない）
-  base_confidence : `~/.claude/doc/doc_wiki_schema.md` の式。source_id への畳み方とバケットは下の分類規則
-  clusters        : 5 ページ以上に付いた tag ごとの n・リンクで結ばれた組の数・cohesion
+  provenance         : 本文の 3 マーカーの比率。分母はマーカー総数（コードフェンス・inline code 内は例なので数えない）
+  base_confidence    : `~/.claude/doc/doc_wiki_schema.md` の式。source_id への畳み方とバケットは下の分類規則
+  clusters           : 5 ページ以上に付いた tag ごとの n・リンクで結ばれた組の数・cohesion
+  summary_over_limit : `summary:` が 200 字を超えるページ
+  index              : index.md のエントリのうち、リンク先の `summary:` の逐語でないもの（index.md が無ければ null）
 
 `--fix-confidence` は Rule 12e の drift（|保存値 − 再計算値| > 0.05）がある `base_confidence:` 行だけを
 書き換える。本文にも他の frontmatter にも触らない。
@@ -51,10 +53,13 @@ BUCKET_SCORES = {
 CONFIDENCE_DRIFT = 0.05
 PROVENANCE_DRIFT = 0.20
 CLUSTER_MIN_PAGES = 5
+SUMMARY_MAX_CHARS = 200
 
 MARKERS = ("extracted", "inferred", "ambiguous")
 _MARKER_RE = re.compile(r"\^\[(extracted|inferred|ambiguous)\]")
 _FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n?", re.DOTALL)
+_INDEX_ENTRY_RE = re.compile(r"^\s*[-*+]\s+(.+?)\s+—\s+(.*?)\s*$")
+_TAG_SUFFIX_RE = re.compile(r"\s*\(\s*#[^()]*\)$")
 
 _PAPER_HOSTS = ("arxiv.org", "doi.org", "aclanthology.org", "openreview.net")
 _BLOG_HOSTS = ("qiita.com", "zenn.dev", "medium.com", "note.com", "dev.to", "hatenablog")
@@ -94,17 +99,26 @@ def analyse(vault: Path, *, overrides: dict[str, str] | None = None) -> dict:
 
     pages: dict[str, dict] = {}
     tags_of: dict[str, list[str]] = {}
+    summaries: dict[str, str | None] = {}
     for rel in paths:
         text = (vault / rel).read_text(encoding="utf-8", errors="replace")
         front, body = split_frontmatter(text)
         meta = parse_frontmatter(front)
         tags_of[rel] = meta.get("tags") or []
+        summaries[rel] = read_summary(front)
         pages[rel] = {
             "provenance": provenance_entry(body, meta.get("provenance")),
             "base_confidence": confidence_entry(meta, overrides or {}, vault.resolve().name),
         }
 
-    return {"pages": pages, "clusters": clusters(vault, tags_of)}
+    return {
+        "pages": pages,
+        "clusters": clusters(vault, tags_of),
+        "summary_over_limit": [
+            {"page": rel, "chars": len(s)} for rel, s in sorted(summaries.items()) if s and len(s) > SUMMARY_MAX_CHARS
+        ],
+        "index": index_report(vault, included + _excluded, summaries),
+    }
 
 
 def split_frontmatter(text: str) -> tuple[str, str]:
@@ -152,6 +166,28 @@ def unquote(value: str) -> str:
     return value
 
 
+def read_summary(front: str) -> str | None:
+    """`summary:` を 1 本の文字列で返す。折り返し `>` の行は空白で、literal `|` の行は改行で繋ぐ。"""
+    lines = front.split("\n")
+    for i, line in enumerate(lines):
+        m = re.match(r"^summary:\s*(.*)$", line)
+        if not m:
+            continue
+        head = m.group(1).strip()
+        if head[:1] not in (">", "|"):
+            if len(head) >= 2 and head[0] == head[-1] and head[0] in "\"'":
+                return head[1:-1]
+            return head.split(" #", 1)[0].strip()
+        block = []
+        for cont in lines[i + 1:]:
+            if cont.strip() and not cont[0].isspace():
+                break
+            if cont.strip():
+                block.append(cont.strip())
+        return (" " if head[0] == ">" else "\n").join(block)
+    return None
+
+
 def provenance_entry(body: str, stored) -> dict | None:
     counted = count_provenance(body)
     if counted is None:
@@ -180,6 +216,38 @@ def count_provenance(body: str) -> dict | None:
     result = {k: round(v / total, 2) for k, v in counts.items()}
     result["n_markers"] = total
     return result
+
+
+def index_report(vault: Path, pages: list[dict], summaries: dict[str, str | None]) -> dict | None:
+    """index.md の各エントリがリンク先ページの `summary:` の逐語か（末尾の `( #tag)` は除いて比べる）。
+
+    リンクが解決しないエントリは数えない（broken / ambiguous は Check 2 / 2a の担当）。
+    """
+    path = vault / "index.md"
+    if not path.is_file():
+        return None
+    lookup = linkgraph.build_index(pages)
+    root = {"dir": ""}
+    entries = 0
+    not_verbatim = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        m = _INDEX_ENTRY_RE.match(line)
+        targets = linkgraph.extract_targets(m.group(1)) if m else []
+        if not targets:
+            continue
+        status, hit = linkgraph.resolve(*targets[0], root, lookup)
+        if status != "ok" or hit["path"] not in summaries:
+            continue
+        entries += 1
+        text = _TAG_SUFFIX_RE.sub("", m.group(2))
+        summary = summaries[hit["path"]]
+        if text != summary:
+            not_verbatim.append({
+                "page": hit["path"],
+                "entry_chars": len(text),
+                "summary_chars": None if summary is None else len(summary),
+            })
+    return {"entries": entries, "entry_not_verbatim": not_verbatim}
 
 
 def confidence_entry(meta: dict, overrides: dict[str, str], project: str) -> dict | None:

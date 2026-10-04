@@ -97,17 +97,7 @@ def main() -> int:
 def analyse(vault: Path) -> dict:
     """vault 1 つを解析して findings を返す。"""
     included, excluded, unreadable = collect_pages(vault)
-    pages = included + excluded
-
-    by_node: dict[str, list[dict]] = defaultdict(list)
-    by_base: dict[str, list[dict]] = defaultdict(list)
-    by_alias: dict[str, list[dict]] = defaultdict(list)
-    for page in pages:
-        by_node[page["node"]].append(page)
-        by_base[page["base"]].append(page)
-        for alias in page["aliases"]:
-            by_alias[alias].append(page)
-    index = {"node": by_node, "base": by_base, "alias": by_alias, "pages": pages}
+    index = build_index(included + excluded)
 
     # incoming は「何ページから参照されているか」。リンク本数と分けるのは、1 ページから
     # 10 回張られたページを「10 ページに依存されているハブ」と誤らせないため。
@@ -195,6 +185,19 @@ def collect_pages(vault: Path) -> tuple[list[dict], list[dict], list[str]]:
         page["excluded"] = is_excluded(rel, patterns)
         (excluded if page["excluded"] else included).append(page)
     return included, excluded, unreadable
+
+
+def build_index(pages: list[dict]) -> dict:
+    """resolve が引く索引（パス・basename・alias → ページ）を組む。"""
+    by_node: dict[str, list[dict]] = defaultdict(list)
+    by_base: dict[str, list[dict]] = defaultdict(list)
+    by_alias: dict[str, list[dict]] = defaultdict(list)
+    for page in pages:
+        by_node[page["node"]].append(page)
+        by_base[page["base"]].append(page)
+        for alias in page["aliases"]:
+            by_alias[alias].append(page)
+    return {"node": by_node, "base": by_base, "alias": by_alias, "pages": pages}
 
 
 def is_excluded(rel: str, patterns: frozenset[str]) -> bool:

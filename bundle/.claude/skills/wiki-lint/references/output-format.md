@@ -33,6 +33,7 @@ Counts here must be the ones from Check 0's script output, not hand-recounted.
 
 ### Index Issues (N found)
 - `concepts/new-page.md` exists on disk but not in index.md
+- 12 entries are not the page's `summary:` verbatim, e.g. `concepts/scaling.md` (entry 245 chars / summary 138 chars)
 
 ### Provenance Issues (N found)
 - `concepts/scaling.md` — AMBIGUOUS > 15%: 22% of claims are ambiguous (re-source or move to synthesis/)
