@@ -166,14 +166,14 @@ It prints JSON. Each entry under `pages` has `provenance` = `{extracted, inferre
 - Apply these thresholds:
   - **AMBIGUOUS > 15%**: flag as "speculation-heavy" — even 1-in-7 claims being genuinely uncertain is a signal the page needs tighter sourcing or should be moved to `synthesis/`
   - **INFERRED > 40% with no `sources:` in frontmatter**: flag as "unsourced synthesis" — the page is making connections but has nothing to cite
-  - **Hub pages** (top 10 by incoming count — take these from the Check 0 graph, do not re-derive) with INFERRED > 20%: flag as "high-traffic page with questionable provenance" — errors on hub pages propagate to every page that links to them
+  - **Hub pages** (top 10 by incoming count — take these from the Check 0 graph, do not re-derive) with INFERRED > 40%: flag as "high-traffic page with questionable provenance" — errors on hub pages propagate to every page that links to them. 40%, not the upstream 20%: pages mark only part of their claims and the unmarked rest is mostly extracted, so a marker-total fraction runs about twice a per-claim one. On the reference vault 20% flagged 9 of 10 hubs; 40% flags the same 2 that 20% flagged when unmarked claims were counted as extracted
   - **Drift**: `drift_flag` is true — the stored `provenance:` block is more than 0.20 off the recomputed value in some field
 - **Skip** pages with no `provenance:` frontmatter and no markers — treated as fully extracted by convention
 
 **How to fix:**
 - For ambiguous-heavy: re-ingest from sources, resolve the uncertain claims, or split speculative content into a `synthesis/` page
 - For unsourced synthesis: add `sources:` to frontmatter or clearly label the page as synthesis
-- For hub pages with INFERRED > 20%: prioritize for re-ingestion — errors here have the widest blast radius
+- For hub pages with INFERRED > 40%: prioritize for re-ingestion — errors here have the widest blast radius
 - For drift: update the `provenance:` frontmatter to match the recomputed values
 
 ### 8. Fragmented Tag Clusters

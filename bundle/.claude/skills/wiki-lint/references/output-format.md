@@ -37,7 +37,7 @@ Counts here must be the ones from Check 0's script output, not hand-recounted.
 ### Provenance Issues (N found)
 - `concepts/scaling.md` — AMBIGUOUS > 15%: 22% of claims are ambiguous (re-source or move to synthesis/)
 - `entities/some-tool.md` — drift: frontmatter says inferred=0.10, recomputed=0.45
-- `concepts/transformers.md` — hub page (31 incoming links) with INFERRED=28%: errors here propagate widely
+- `concepts/transformers.md` — hub page (31 incoming links) with INFERRED=52%: errors here propagate widely
 - `synthesis/speculation.md` — unsourced synthesis: no `sources:` field, 55% inferred
 
 ### Fragmented Tag Clusters (N found)
