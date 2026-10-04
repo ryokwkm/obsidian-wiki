@@ -105,7 +105,7 @@ def analyse(vault: Path, *, overrides: dict[str, str] | None = None) -> dict:
         front, body = split_frontmatter(text)
         meta = parse_frontmatter(front)
         tags_of[rel] = meta.get("tags") or []
-        summaries[rel] = read_summary(front)
+        summaries[rel] = meta.get("summary")
         pages[rel] = {
             "provenance": provenance_entry(body, meta.get("provenance")),
             "base_confidence": confidence_entry(meta, overrides or {}, vault.resolve().name),
@@ -129,14 +129,18 @@ def split_frontmatter(text: str) -> tuple[str, str]:
 
 
 def parse_frontmatter(front: str) -> dict:
-    """ここで要るキーだけを読む最小の YAML 読み。スカラー・inline/block リスト・1 段の map。"""
+    """ここで要るキーだけを読む最小の YAML 読み。スカラー・折り返し（`>-` 等。行は空白で繋ぐ）・inline/block リスト・1 段の map。"""
     meta: dict = {}
     key = None
+    in_block = False
     for line in front.split("\n"):
         top = re.match(r"^([A-Za-z_][\w-]*):\s*(.*)$", line)
         if top:
             key, value = top.group(1), top.group(2).strip()
-            if value.startswith("[") and value.endswith("]"):
+            in_block = value in (">-", ">", "|", "|-")
+            if in_block:
+                meta[key] = ""
+            elif value.startswith("[") and value.endswith("]"):
                 meta[key] = [unquote(v) for v in value[1:-1].split(",") if v.strip()]
             elif value:
                 meta[key] = unquote(value)
@@ -144,6 +148,10 @@ def parse_frontmatter(front: str) -> dict:
                 meta[key] = None
             continue
         if key is None:
+            continue
+        if in_block:
+            if line.strip():
+                meta[key] = f"{meta[key]} {line.strip()}".lstrip()
             continue
         item = re.match(r"^\s+-\s+(.*)$", line)
         if item:
@@ -165,27 +173,6 @@ def unquote(value: str) -> str:
         return value[1:-1]
     return value
 
-
-def read_summary(front: str) -> str | None:
-    """`summary:` を 1 本の文字列で返す。折り返し `>` の行は空白で、literal `|` の行は改行で繋ぐ。"""
-    lines = front.split("\n")
-    for i, line in enumerate(lines):
-        m = re.match(r"^summary:\s*(.*)$", line)
-        if not m:
-            continue
-        head = m.group(1).strip()
-        if head[:1] not in (">", "|"):
-            if len(head) >= 2 and head[0] == head[-1] and head[0] in "\"'":
-                return head[1:-1]
-            return head.split(" #", 1)[0].strip()
-        block = []
-        for cont in lines[i + 1:]:
-            if cont.strip() and not cont[0].isspace():
-                break
-            if cont.strip():
-                block.append(cont.strip())
-        return (" " if head[0] == ">" else "\n").join(block)
-    return None
 
 
 def provenance_entry(body: str, stored) -> dict | None:

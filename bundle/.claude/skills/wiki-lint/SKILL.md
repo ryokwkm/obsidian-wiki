@@ -149,6 +149,7 @@ Verify `index.md` matches the actual page inventory.
 - Compare pages listed in `index.md` to actual files on disk
 - Each entry must be the page's `summary:` verbatim, optionally followed by a `( #tag)` suffix. The metrics script run lists the entries that are not under `index.entry_not_verbatim` (`null` when the vault has no `index.md`) — do not compare by eye. An entry that grows past its summary is how `index.md` bloated twice before.
 - When more than 3 entries are listed, report the count and 3 examples rather than every line.
+- `index.entries` is how many entries the script could match to a page. If it is far below the page count, the script did not recognise the entry format — say so; an empty `entry_not_verbatim` then means "not checked", not "no issues".
 
 **How to fix:** copy the page's `summary:` into the entry — never the other way. If the summary is over 200 chars, shorten the summary first (Check 3a).
 

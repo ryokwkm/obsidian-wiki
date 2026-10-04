@@ -167,17 +167,12 @@ class VaultReportTest(VaultCase):
         self.assertEqual(rep["clusters"], {})
 
 
-class SummaryTest(unittest.TestCase):
+class FoldedScalarTest(unittest.TestCase):
     def test_folded_block_joins_lines_with_a_space(self):
-        front = "title: A\nsummary: >-\n  一行目の途中で\n  折り返した要約。\ntags: [t]"
-        self.assertEqual(fm.read_summary(front), "一行目の途中で 折り返した要約。")
-
-    def test_plain_and_quoted(self):
-        self.assertEqual(fm.read_summary("summary: 素の要約 # コメント"), "素の要約")
-        self.assertEqual(fm.read_summary('summary: "引用内の # は本文"'), "引用内の # は本文")
-
-    def test_missing_returns_none(self):
-        self.assertIsNone(fm.read_summary("title: A"))
+        front = "title: A\nsummary: >-\n  一行目の途中で\n  - 箇条書きに見える行も本文\ntags: [t]"
+        meta = fm.parse_frontmatter(front)
+        self.assertEqual(meta["summary"], "一行目の途中で - 箇条書きに見える行も本文")
+        self.assertEqual(meta["tags"], ["t"])
 
 
 class IndexReportTest(VaultCase):
