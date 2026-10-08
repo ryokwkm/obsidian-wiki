@@ -110,6 +110,6 @@ project directories; taking the first match attributed 110 links to the wrong pa
 - **A link into an excluded directory is neither.** The target exists, so it is not broken;
   the target is not in the graph, so it is not an edge. Count them separately.
 - **orphan** = incoming 0 **and** outgoing 0, excluding the reserved pages
-  `index` / `log` / `hot` / `_insights`.
+  `index` / `log` / `hot` / `_insights` / `readme`.
 - Report every page's incoming and outgoing, **including the zeros**. A page missing from
   the list is indistinguishable from a page you forgot to scan.

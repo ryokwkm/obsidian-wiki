@@ -200,6 +200,7 @@ class TestOrphans(VaultCase):
     def test_reserved_pages_are_never_orphans(self):
         r = self.build({
             "index.md": "空\n", "log.md": "空\n", "hot.md": "空\n", "_insights.md": "空\n",
+            "README.md": "空\n",
         })
         self.assertEqual(r["orphans"], [])
 

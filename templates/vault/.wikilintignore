@@ -4,12 +4,7 @@
 # `_` で始まるディレクトリ（_raw/ _archives/ _staging/ _source_docs/ _state/ など）は、書かなくても
 # 常に走査から外れる。ここに書くのはそれ以外だけ。
 #
-# index.md / log.md / hot.md は走査対象。これらが免除されるのは orphan 判定だけで、
-# 張ったリンクは通常どおり incoming に数える。README.md はその免除にすら入らない。
+# index.md / log.md / hot.md / README.md / _insights.md は走査対象。免除されるのは orphan 判定と
+# frontmatter 指標だけで、張ったリンクは通常どおり incoming に数える。
 #
 # 「vault 内に置くが wiki ページではない読み物」の領域を作ったら、ここへ 1 行足す（例: reports/）。
-
-# orphan は「incoming も outgoing も 0」なので、wikilink を 1 本も持たない seed の README.md は
-# 初回の wiki-lint で必ず orphan として上がる —— 手順どおりに進めた人が、何も間違えていないのに
-# 見る警告になる。README を他ページへリンクする知識ページとして育てるなら、この行は消してよい。
-README.md

@@ -166,6 +166,14 @@ class VaultReportTest(VaultCase):
         rep = fm.analyse(self.build({"concepts/a.md": page("title: A\ntags: [t]")}))
         self.assertEqual(rep["clusters"], {})
 
+    def test_reserved_pages_are_not_measured(self):
+        rep = fm.analyse(self.build({
+            "concepts/a.md": page("title: A"),
+            "index.md": page("title: Index"),
+            "README.md": page("title: Readme"),
+        }))
+        self.assertEqual(list(rep["pages"]), ["concepts/a.md"])
+
 
 class FoldedScalarTest(unittest.TestCase):
     def test_folded_block_joins_lines_with_a_space(self):

@@ -43,7 +43,9 @@ from pathlib import Path
 SKIP_DIRS = frozenset({".obsidian", ".git", ".claude"})
 
 # orphan / frontmatter 検査の対象外にするページ。vault の骨格であって知識ページではない。
-RESERVED_PAGE_STEMS = frozenset({"index", "log", "hot", "_insights"})
+# wiki-dedup の SKIP_NAMES と同じ 5 つ（templates/vault/.wikilintignore の注記もこれに合わせる）。
+# 照合は slug 後の stem なので小文字で書く。
+RESERVED_PAGE_STEMS = frozenset({"index", "log", "hot", "_insights", "readme"})
 
 # リンク先がノートでないもの。埋め込み `![[diagram.png]]` を broken と誤報しないため。
 ASSET_EXTENSIONS = frozenset(
