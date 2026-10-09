@@ -91,6 +91,9 @@ if [ -f "$VAULT/hot.md" ] || [ -f "$VAULT/index.md" ]; then
     while [ "${VNAME%/}" != "$VNAME" ]; do VNAME="${VNAME%/}"; done
     VNAME="${VNAME##*/}"
     [ -n "$VNAME" ] || VNAME="$VAULT"
+    # collection 名を優先する。vault を `<プロジェクト>/vault/` に置くと basename が `vault` になり、
+    # どの vault のメーターか読めない（collection 名 = vault の名前、が規約）。
+    VNAME="${QMD_WIKI_COLLECTION:-$VNAME}"
 
     # ⚠️ 全角括弧は変数名を終端しない（`"$METER_LINE（"` は `set -u` で落ちる = hook が exit 1）。
     # **日本語が続く位置の変数は必ずブレースで囲む。**
