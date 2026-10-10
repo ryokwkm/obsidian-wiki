@@ -9,7 +9,7 @@ description: 現在のプロジェクトで得た知識（外部ツールの仕�
 
 ## 着手前に
 
-1. **設定を解決する** — `OBSIDIAN_VAULT_PATH` が既に export されていればそれを使う（shell rc / direnv / 親プロセス）。無ければ CWD から `$HOME` まで遡って `OBSIDIAN_VAULT_PATH=` を含む `.env` を探し、最初に見つかったものを採る。どちらも無ければ止まり、`.claude/settings.json`（`env`）・shell rc・direnv のどれかで設定するようユーザーに伝える —— パスを決め打ちしたり vault を推測したりしない。**どの vault に書くかはプロジェクトごとの設定で、グローバルな設定ではない** —— リポジトリ単位で設定されるので、セッションが最初から持っていると仮定しない。`OBSIDIAN_LINK_FORMAT` も同じ方法で読む（既定は `wikilink`、もう一方は `markdown`）。どのプロジェクトのディレクトリからでも動く。
+1. **設定を解決する** — `OBSIDIAN_VAULT_PATH` が既に export されていればそれを使う（shell rc / direnv / 親プロセス）。無ければ CWD から `$HOME` まで遡って `OBSIDIAN_VAULT_PATH=` を含む `.env` を探し、最初に見つかったものを採る。どちらも無ければ止まり、`.claude/settings.json`（`env`）・shell rc・direnv のどれかで設定するようユーザーに伝える —— パスを決め打ちしたり vault を推測したりしない。**どの vault に書くかはプロジェクトごとの設定で、グローバルな設定ではない** —— リポジトリ単位で設定されるので、セッションが最初から持っていると仮定しない。`OBSIDIAN_LINK_FORMAT` も同じ方法で読む（既定は `wikilink`、もう一方は `markdown`）。
 2. `$OBSIDIAN_VAULT_PATH/.manifest.json` を読み、このプロジェクトが以前に同期されたかを確かめる。
 3. wiki に既に何があるかを、**`index.md` を丸ごと読まずに**調べる。育った vault では `index.md` は数十 KB になり、闇雲に全部読むのがこの skill で最も高くつく操作になる。`~/.claude/doc/doc_wiki_schema.md` の Retrieval Primitives の表に従い、`index.md` をプロジェクト名とこれから書く各概念で `Grep` し、ヒットした数ページの `summary:` を読む。`index.md` を全部読むのは、その grep が空で、なお vault の全体像が要るときだけ。
 
