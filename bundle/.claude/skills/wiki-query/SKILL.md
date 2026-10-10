@@ -110,13 +110,17 @@ For CLI transport, pick the command from `$QMD_CLI_SEARCH_MODE`:
 
 Keep operator-like or punctuation-heavy tokens such as `no-sudo`, `ansible_become=false`, and `~/.local/bin` in the `lex:` line. Rewrite the `vec:` line as plain natural language without hyphenated `-term` words; QMD treats `-term` as negation, and negation is not supported in `vec`/`hyde` queries.
 
+🔴 Put the `lex:` / `vec:` lines in one double-quoted string with a real line break, as below — never `$'…\n…'`. ANSI-C quoting takes the command out of the allowlist just like `${QMD_CLI:-qmd}` does; the embedding then fails on GPU init and qmd still exits normally with **lex-only results**, so the semantic half silently disappears.
+
 - `quality` (default): best relevance; slower on CPU.
   ```bash
-  qmd query $'lex: <key terms>\nvec: <question rephrased as a description>' -c "$QMD_WIKI_COLLECTION" -n 8 --files
+  qmd query "lex: <key terms>
+  vec: <question rephrased as a description>" -c "$QMD_WIKI_COLLECTION" -n 8 --files
   ```
 - `balanced`: hybrid search without LLM reranking; use when `quality` is too slow.
   ```bash
-  qmd query $'lex: <key terms>\nvec: <question rephrased as a description>' -c "$QMD_WIKI_COLLECTION" -n 8 --no-rerank --files
+  qmd query "lex: <key terms>
+  vec: <question rephrased as a description>" -c "$QMD_WIKI_COLLECTION" -n 8 --no-rerank --files
   ```
 - `fast`: semantic-only recall, or `search` instead when exact names, file paths, or error messages matter.
   ```bash
@@ -139,11 +143,12 @@ If `QMD_PAPERS_COLLECTION` is set and the user is asking about a topic likely co
 
 - **CLI:** add one `-c <name>` per listed name to the same command, after `-c "$QMD_WIKI_COLLECTION"`, writing each name out literally (you read the values in Before You Start). One query then ranks this vault and the extra vaults together:
   ```bash
-  qmd query $'lex: <key terms>\nvec: <question rephrased as a description>' -c "$QMD_WIKI_COLLECTION" -c <extra-1> -c <extra-2> -n 8 --files
+  qmd query "lex: <key terms>
+  vec: <question rephrased as a description>" -c "$QMD_WIKI_COLLECTION" -c <extra-1> -c <extra-2> -n 8 --files
   ```
   Never build the flags with a loop or `$(...)` — any of that around `qmd` moves the command out of the allowlist, the same trap as `${QMD_CLI:-qmd}`.
 - **MCP:** pass `collections: [<QMD_WIKI_COLLECTION>, <extra-1>, …]` (an array, OR-matched) so one query ranks them together, as the CLI does.
-- **Reading a hit from an extra collection** — the `qmd://` host names its collection. It lives outside `$OBSIDIAN_VAULT_PATH`, so the `Grep` and `Read` of Steps 3–4 do not reach it: fetch it with `qmd get qmd://<collection>/<path>` (the whole page) or `qmd get qmd://<collection>/<path>:<from>:<count>` (a section, the Step 3 equivalent). Do not follow its `[[wikilinks]]` — they resolve inside its own vault, not this one.
+- **Reading a hit from an extra collection** — the `qmd://` host names its collection. It lives outside `$OBSIDIAN_VAULT_PATH`, so the `Grep` and `Read` of Steps 3–4 do not reach it: fetch it with `qmd get qmd://<collection>/<path>` (the whole page) or `qmd get qmd://<collection>/<path>:<from>:<count>` (a section, the Step 3 equivalent). `--files` output carries no line numbers; to find `<from>`, run `qmd search "<key terms>" -c <collection>` without `--files` — each hit is headed `qmd://<collection>/<path>:<line>`. Do not follow its `[[wikilinks]]` — they resolve inside its own vault, not this one.
 - **Citing it** — write `qmd://<collection>/<path>`, never `[[...]]` (a wikilink would point into this vault, where the page does not exist).
 - If QMD is unavailable, the extra collections cannot be searched at all (the grep path covers only this vault) — say so in the answer instead of implying they had nothing.
 

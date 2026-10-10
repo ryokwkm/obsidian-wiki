@@ -185,15 +185,17 @@ mcp__qmd__query:
       query: <key terms, author names, method names from the source>
 ```
 
-For CLI transport, pick the command from `$QMD_CLI_SEARCH_MODE`:
+For CLI transport, pick the command from `$QMD_CLI_SEARCH_MODE`. 🔴 Put the `vec:` / `lex:` lines in one double-quoted string with a real line break, as below — never `$'…\n…'`: ANSI-C quoting takes the command out of the allowlist, and qmd then silently returns lex-only results.
 
 - `quality` (default): best relevance; slower on CPU.
   ```bash
-  qmd query $'vec: <topic or thesis of the source>\nlex: <key terms, author names, method names>' -c "$QMD_PAPERS_COLLECTION" -n 8 --files
+  qmd query "vec: <topic or thesis of the source>
+  lex: <key terms, author names, method names>" -c "$QMD_PAPERS_COLLECTION" -n 8 --files
   ```
 - `balanced`: hybrid search without LLM reranking; use when `quality` is too slow.
   ```bash
-  qmd query $'vec: <topic or thesis of the source>\nlex: <key terms, author names, method names>' -c "$QMD_PAPERS_COLLECTION" -n 8 --no-rerank --files
+  qmd query "vec: <topic or thesis of the source>
+  lex: <key terms, author names, method names>" -c "$QMD_PAPERS_COLLECTION" -n 8 --no-rerank --files
   ```
 - `fast`: semantic-only source discovery.
   ```bash
