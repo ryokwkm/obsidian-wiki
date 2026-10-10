@@ -301,6 +301,7 @@ hook 登録が同時に消える（キルスイッチ）。経路 B なら手順
 | `OBSIDIAN_SOURCES_DIR` | 任意 | 一次資料の置き場（ingest したローカルファイルの原本コピー。既定は vault 内の `_source_docs/`）。ページの `sources:` はここを指す —— 元の場所（ダウンロードフォルダ等）は消えるため |
 | `QMD_WIKI_COLLECTION` | 任意 | qmd の collection 名（vault ディレクトリ名と一致させる） |
 | `QMD_PAPERS_COLLECTION` | 任意 | 論文用 collection 名 |
+| `QMD_EXTRA_COLLECTIONS` | 任意 | wiki-query が自分の vault と一緒に検索する、別 vault の collection 名（空白区切り）。読むだけで書かない。答えに使った内容は書く skill 経由でこの vault へ書き写されうるので、写してよい向きのプロジェクトにだけ設定する |
 | `QMD_BIN_DIR` | 任意 | `qmd` の置き場（`~/.bun/bin` 等）。hook は非ログインシェルで走り `.zshrc` の PATH を持たないので、`qmd` が見つからないときに指定する |
 
 ## うまく動かないとき

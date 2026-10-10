@@ -19,7 +19,7 @@ If the user's message contains a new finding, an action request ("save this", "b
 ## Before You Start
 
 1. **Resolve config.** Use `$OBSIDIAN_VAULT_PATH` if it is already exported (shell rc, direnv, parent process) — that wins. If it is unset, walk up from CWD to `$HOME` for the first `.env` containing `OBSIDIAN_VAULT_PATH=` and use that value. If neither yields a path, stop and tell the user: `No vault config found. Set OBSIDIAN_VAULT_PATH in .claude/settings.json (env), a shell rc, or direnv.` Never hard-code a vault path and never borrow another project's vault. This works from any project directory.
-2. **Read the QMD variables from the same config** — `QMD_WIKI_COLLECTION`, `QMD_TRANSPORT`, `QMD_CLI_SEARCH_MODE`, `QMD_PAPERS_COLLECTION` — before deciding a retrieval strategy. If `QMD_WIKI_COLLECTION` is set, treat QMD as available subject only to the transport check in Step 2b. If it is empty or unset, say briefly why QMD is being skipped and take the grep path; it is fully functional.
+2. **Read the QMD variables from the same config** — `QMD_WIKI_COLLECTION`, `QMD_TRANSPORT`, `QMD_CLI_SEARCH_MODE`, `QMD_PAPERS_COLLECTION`, `QMD_EXTRA_COLLECTIONS` — before deciding a retrieval strategy. If `QMD_WIKI_COLLECTION` is set, treat QMD as available subject only to the transport check in Step 2b. If it is empty or unset, say briefly why QMD is being skipped and take the grep path; it is fully functional.
 3. **Read nothing from the vault yet.** Classify the question first (Step 1), then climb the ladder from its cheap end (Step 2 onward). Two files in particular are not free and must not be opened reflexively:
    - **`index.md` runs to tens of kilobytes in a mature vault.** Grep it for the query terms (Step 2). Read it whole only when the question is about the wiki's *shape* — "what's in here", "what areas do I cover".
    - **`hot.md` holds no distilled knowledge.** It is a cache of the last few operations and open threads, so for a question about a *topic* it costs bytes and answers nothing. It is the last rung, not the first — see Step 4c.
@@ -133,6 +133,20 @@ The returned snippets or ranked files act as pre-read section summaries. If they
 
 If `QMD_PAPERS_COLLECTION` is set and the user is asking about a topic likely covered by ingested papers (research, theory, background), run a parallel search against the papers collection. Cite raw sources separately from compiled wiki pages in your answer.
 
+**Also search the read-only extra collections when `QMD_EXTRA_COLLECTIONS` is set:**
+
+`QMD_EXTRA_COLLECTIONS` is a space-separated list of *other* vaults' collection names that this project may read but never writes to (e.g. a project built on a shared base reads the base's vault). Search them on every query that reaches this step, not only on a topic guess — they exist because this vault alone is known to be incomplete.
+
+- **CLI:** add one `-c <name>` per listed name to the same command, after `-c "$QMD_WIKI_COLLECTION"`, writing each name out literally (you read the values in Before You Start). One query then ranks this vault and the extra vaults together:
+  ```bash
+  qmd query $'lex: <key terms>\nvec: <question rephrased as a description>' -c "$QMD_WIKI_COLLECTION" -c <extra-1> -c <extra-2> -n 8 --files
+  ```
+  Never build the flags with a loop or `$(...)` — any of that around `qmd` moves the command out of the allowlist, the same trap as `${QMD_CLI:-qmd}`.
+- **MCP:** pass `collections: [<QMD_WIKI_COLLECTION>, <extra-1>, …]` (an array, OR-matched) so one query ranks them together, as the CLI does.
+- **Reading a hit from an extra collection** — the `qmd://` host names its collection. It lives outside `$OBSIDIAN_VAULT_PATH`, so the `Grep` and `Read` of Steps 3–4 do not reach it: fetch it with `qmd get qmd://<collection>/<path>` (the whole page) or `qmd get qmd://<collection>/<path>:<from>:<count>` (a section, the Step 3 equivalent). Do not follow its `[[wikilinks]]` — they resolve inside its own vault, not this one.
+- **Citing it** — write `qmd://<collection>/<path>`, never `[[...]]` (a wikilink would point into this vault, where the page does not exist).
+- If QMD is unavailable, the extra collections cannot be searched at all (the grep path covers only this vault) — say so in the answer instead of implying they had nothing.
+
 ### Step 3: Section Pass (medium cost — only if Steps 2/2b are inconclusive)
 
 For each of the top candidates, pull the relevant section *without reading the whole page*:
@@ -243,6 +257,8 @@ Structure answers like this:
 > [Your synthesized answer with [[wikilinks]] to source pages]
 >
 > **Pages consulted:** [[page-a]], [[page-b]], [[page-c]]
+>
+> **Other vaults consulted:** `qmd://<collection>/<path>` — only when an extra collection contributed (Step 2b)
 >
 > **Gaps:** [What the wiki doesn't cover that might be relevant]
 >
