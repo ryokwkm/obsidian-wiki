@@ -97,7 +97,7 @@ For MCP transport:
 
 ```
 mcp__qmd__query:
-  collection: <QMD_WIKI_COLLECTION>   # e.g. "knowledge-base-wiki"
+  collections: [<QMD_WIKI_COLLECTION>]   # e.g. ["knowledge-base-wiki"]; an array, OR-matched
   intent: <the user's question>
   searches:
     - type: lex    # keyword match — good for exact names, file paths, error messages
