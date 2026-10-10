@@ -176,7 +176,7 @@ For MCP transport:
 
 ```
 mcp__qmd__query:
-  collection: <QMD_PAPERS_COLLECTION>   # e.g. "papers"
+  collections: [<QMD_PAPERS_COLLECTION>]   # e.g. ["papers"]; an array, OR-matched
   intent: <what this document is about>
   searches:
     - type: vec    # semantic — finds papers on the same topic even with different vocabulary
