@@ -5,7 +5,7 @@
 `~/.claude/projects/` には、ユーザーが Claude Code で開いたプロジェクトごとに 1 つのディレクトリがある。ディレクトリ名は絶対パスをエンコードしている:
 
 ```
-/Users/name/Documents/projects/my-app → -Users/name/Documents/projects/my-app
+/Users/name/Documents/projects/my-app → -Users-name-Documents-projects-my-app
 ```
 
 元のパスを復元するには: 先頭の `-` を `/` に置き換え、残りの `-` は慎重に置き換える（ディレクトリ名そのものにもダッシュが現れる）。セッション・会話のデータにある `cwd` フィールドが正規のパスを与える。
@@ -67,7 +67,7 @@
   "message": {
     "role": "assistant",
     "content": [
-      { "type": "thinking", "text": "internal reasoning (skip this)" },
+      { "type": "thinking", "thinking": "internal reasoning (skip this)" },
       { "type": "text", "text": "The actual visible response" },
       {
         "type": "tool_use",

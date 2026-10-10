@@ -205,8 +205,10 @@ This page has been merged into [[<canonical page title>]].
 
 `log.md` に追記する:
 ```
-- [TIMESTAMP] DEDUP mode=audit|merge pages_compared=N ranked_read=K merged=X layered=L kept_separate=Y needs_review=Z edges_added=E wikilinks_rewritten=W
+- [TIMESTAMP] DEDUP mode=audit|merge pages_compared=N ranked_read=K merged=X layered=L kept_separate=Y needs_review=Z edges_added=E wikilinks_rewritten=W note="…"
 ```
+
+`note=` は任意で、所見を一言で書く。
 
 `[TIMESTAMP]` は `date -u +%Y-%m-%dT%H:%M:%SZ` の出力 —— 実行して結果をそのまま貼る。手で書かない（理由: schema doc の `log.md`）。
 

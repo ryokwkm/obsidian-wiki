@@ -218,7 +218,7 @@ type: user|feedback|project|reference
 ```json
 {
   "content": [
-    {"type": "thinking", "text": "..."},
+    {"type": "thinking", "thinking": "..."},
     {"type": "text", "text": "The actual response..."},
     {"type": "tool_use", "name": "Read", "input": {...}}
   ]
@@ -279,8 +279,8 @@ type: user|feedback|project|reference
 Claude の各プロジェクトは、vault のプロジェクトディレクトリに対応する。`~/.claude/projects/` のプロジェクトディレクトリ名は元のパスをエンコードしている —— デコードして整ったプロジェクト名を得る:
 
 ```
--Users/Documents/projects/my-Project   → myproject
--Users/Documents/projects/Another-app  → anotherapp
+-Users-name-Documents-projects-my-Project   → myproject
+-Users-name-Documents-projects-Another-app  → anotherapp
 ```
 
 `--claude-worktrees-` を含む名前は**新しいプロジェクトではなく、別のプロジェクトの git worktree** である: 名前をその目印で切って左側を使い、worktree のセッションが既存のプロジェクトページに入るようにする。詳細と実測した例は `references/claude-data-format.md` にある。
@@ -376,7 +376,7 @@ manifest の `projects` 節も更新する。**キーの集合は
 ⚠️ **変更は、その箇所を特定できる最小の範囲への `Edit` だけで行う —— 置き換える行であって、その周りの節ではない。
 ファイルを丸ごと書かない**（理由: schema doc の Special Files）。
 
-- **`## Recent Activity`** —— この実行について 1 行で置き換える —— 例: 「2 つのプロジェクトにまたがる Claude の会話 5 件を取り込み、API 設計とテスト戦略のパターンを掘り出した。」 —— 直近 3 件の操作だけを残す。
+- **`## Recent Activity`** —— この実行について 1 行、新しい順。1 回の `Edit` で先頭に入れる —— 例: 「2 つのプロジェクトにまたがる Claude の会話 5 件を取り込み、API 設計とテスト戦略のパターンを掘り出した。」節が既に 3 件を持っていれば、最も古い行を**別の** `Edit` で消す（両方を一度にやると、節全体を `old_string` に入れることになる）。
 - **`## Active Threads`** —— スレッド 1 つにつき 1 行、最大 3 件で置き換え、もう動いていないスレッドは落とす。**掘り出したパターンはここに書かない** —— それらはいま書いたページに置く。この節がファイルに無ければ、足さずに無いままにする。
 - **frontmatter の `updated:` フィールドを現在のタイムスタンプに更新する** —— 忘れやすい。本文の編集と frontmatter の更新は必ず両方行う。
 

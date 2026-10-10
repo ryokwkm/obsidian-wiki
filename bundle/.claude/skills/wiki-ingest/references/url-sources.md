@@ -24,8 +24,7 @@
 | U4 | 知識を抽出し、provenance を追う |
 | U5 | ページを書く（frontmatter はモードごとに違う。`base_confidence` は URL のホストから） |
 | U5b | affinity のスコア付け —— **misc モードのみ** |
-| U6 | プロジェクトの概要を更新する —— **プロジェクトモードのみ** |
-| — | `## References` —— ページに出典の一覧をどう記録するか |
+| U6 | プロジェクトの概要を更新する —— その `## References` 節に新しいページを足す（無ければ作る）—— **プロジェクトモードのみ** |
 | U7 | `.manifest.json`・`index.md`・`log.md`・`hot.md` を更新する |
 | — | `## Quality Checklist (URL sources)` —— 完了を報告する前に実行する |
 
