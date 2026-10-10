@@ -145,7 +145,7 @@ Vault: <name> — N pages compared, M pairs ranked. Read down to rank K; below t
 - **`sources:`** —— 両方の出典リストをマージする（重複を除く）
 - **`relationships:`** —— 両方の関係リストをマージする（target で重複を除き、型の無いエントリより型付きのエントリを優先する）
 - **`base_confidence`** —— **異なる `source_id` の和集合**で計算し直す: `min(distinct_sources / 3, 1.0) × 0.5 + avg(per-source quality score) × 0.5`。同じソースの写し 2 つは 1 つの `source_id` を共有するので、マージしても数は自動では増えない。ソースごとの品質のバケットと `source_id` の規則は `~/.claude/doc/doc_wiki_schema.md`（Confidence formula）にある
-- **`lifecycle`** —— **2 つのうち低い方の段**を採る。`draft` を `tested` のページへマージすると、残る本文の一部に証拠が無くなるので、そのページはもう `tested` を名乗れない。残った段を提供した方のページから `lifecycle_evidence` / `evidence_at` を引き継ぎ、`lifecycle_changed` を更新する。**残す側のページの段を、生き残る側だからというだけで決して据え置かない** —— それをすると、未検証の主張が検証済みのページに紛れ込み、黙って検証済みとして通ってしまう（ロンダリングされる）。どちらかのページが**序列外（unranked）**の値を持っていたら、止まって尋ねる: 序列外のページは、そもそも序列のあるページへマージしない。
+- **`lifecycle`** —— **2 つのうち低い方の段**を採る。`draft` を `tested` のページへマージすると、残る本文の一部に証拠が無くなるので、そのページはもう `tested` を名乗れない。残った段を提供した方のページから `lifecycle_evidence` / `evidence_at` を引き継ぎ、`lifecycle_changed` を更新する。**残す側のページの段を、生き残る側だからというだけで決して据え置かない** —— それでは、未検証の主張が検証済みのページに黙って紛れ込む（ロンダリング）。どちらかのページが**序列外（unranked）**の値を持っていたら、止まって尋ねる: 序列外のページは、そもそも序列のあるページへマージしない。
   - 値・段・どの値が序列外か・昇格の規則は、ただ 1 か所 —— **`~/.claude/doc/doc_wiki_lifecycle_rubric.md`** —— にある。`lifecycle` の値を何か書く前には、それを読む。**値の一覧をここに書き写さない**
 - **`updated`** —— 現在時刻にする
 - **`summary:`** —— 統合される側のページが新しい範囲を持ち込んだなら、マージ後の範囲を覆うように書き直す

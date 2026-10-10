@@ -20,7 +20,7 @@ description: 現在の会話を、チャットの書き起こしではなく宣�
 
 **速度の約束:** インラインだけで済ませる。サブエージェントを使わない。manifest / `index.md` / `log.md` / `hot.md` を書かない。目標: 60 秒未満。wiki の本ページへの昇格は、後で `/wiki-ingest` が行う。
 
-1. **設定を解決する** —— `OBSIDIAN_VAULT_PATH` が既に export されていればそれを使う。無ければ CWD から `$HOME` まで遡って `OBSIDIAN_VAULT_PATH` を含む `.env` を探し、最初に見つかったものを採る。どちらも無ければ `.claude/settings.json`（`env` ブロック）で設定するようユーザーに伝えて止まる。`OBSIDIAN_RAW_DIR` の既定は `$OBSIDIAN_VAULT_PATH/_raw`。**このディレクトリは無いものと考える** —— ほとんどの vault はまだ一度もキャプチャをステージングしたことがない —— ので、書く前に作る: `mkdir -p "$OBSIDIAN_RAW_DIR"`。
+1. **設定を解決する** —— `OBSIDIAN_VAULT_PATH` が既に export されていればそれを使う。無ければ CWD から `$HOME` まで遡って `OBSIDIAN_VAULT_PATH` を含む `.env` を探し、最初に見つかったものを採る。どちらも無ければ `.claude/settings.json`（`env` ブロック）で設定するようユーザーに伝えて止まる。`OBSIDIAN_RAW_DIR` の既定は `$OBSIDIAN_VAULT_PATH/_raw`。**このディレクトリは無いものと考える**（ほとんどの vault はまだ一度もキャプチャをステージングしたことがない）ので、書く前に作る: `mkdir -p "$OBSIDIAN_RAW_DIR"`。
 
 2. **関門 —— KEEP か SKIP か？** 取り出す前に、このセッションに残す価値があるかを判断する。これで、誰も昇格させないファイルが `_raw/` に溜まらずに済む。
    - **SKIP**（「このセッションには残す価値のあるものがありません。」と伝えて終える）にするのは、次がすべて当てはまるとき: 会話が純粋な対話（計画・Q&A・説明）で、実装を伴わない。エラー・デバッグ・問題解決が見当たらない。意外なことも、文書化されていないことも無い。どの知見もドキュメントから既に明らか。
