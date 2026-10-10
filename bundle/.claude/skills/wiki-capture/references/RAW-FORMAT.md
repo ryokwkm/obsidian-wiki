@@ -1,28 +1,28 @@
-# Raw File Format Reference
+# raw ファイルの書式リファレンス
 
-Full specification for `_raw/` files written by `wiki-capture` (quick mode).
-These files are designed to be promoted by `/wiki-ingest`.
+`wiki-capture`（クイックモード）が書く `_raw/` ファイルの完全な仕様。
+これらのファイルは `/wiki-ingest` が昇格させる前提で作られている。
 
-## Frontmatter
+## frontmatter
 
 ```yaml
 ---
-title: "<Descriptive cluster title>"
+title: "<クラスタの中身が分かるタイトル>"
 category: skills
 tags:
   - <primary-tech>
-  - <1-3 additional domain tags already used in the vault's index.md>
-summary: "<1–2 sentences, ≤200 chars — what is this finding about?>"
+  - <vault の index.md で既に使われているドメインのタグを 1〜3 個追加>
+summary: "<1〜2 文・200 字以内 —— この知見は何についてのものか？>"
 tier: supporting
 related: []
 extends: null
 contradicts: null
 superseded_by: null
 capture_source: claude-session
-project: "<project name or null>"
+project: "<プロジェクト名か null>"
 base_confidence: 0.75
-lifecycle: draft                # floor — raw staging always starts here; ranking happens when the page
-                                # is compiled out of `_raw/`, per `~/.claude/doc/doc_wiki_lifecycle_rubric.md`
+lifecycle: draft                # 下限。raw のステージングは必ずここから始まる。段を決めるのは、ページが
+                                # `_raw/` から本ページへ仕立てられるとき（`~/.claude/doc/doc_wiki_lifecycle_rubric.md` に従う）
 lifecycle_changed: <YYYY-MM-DD>
 provenance:
   extracted: 0.85
@@ -32,16 +32,16 @@ sources:
 ---
 ```
 
-## Body: Finding Block
+## 本文: 知見ブロック
 
-For bugs and fixes:
+バグと修正の場合:
 
 ````markdown
 ## <Finding Title>
 
-**Problem:** <what was non-obvious or broken — be specific about the symptom>
+**Problem:** <何が自明でなかったか、何が壊れていたか —— 症状を具体的に>
 
-**Root cause:** <why it happened — the underlying mechanism, not just the error message>
+**Root cause:** <なぜ起きたか —— エラーメッセージだけでなく、その下にある仕組み>
 
 **Fix:**
 ```<lang>
@@ -49,60 +49,60 @@ For bugs and fixes:
 // ✅ after
 ```
 
-**Confirmed by:** <build pass / test pass / live app / error disappeared>
+**Confirmed by:** <ビルドが通った / テストが通った / 実際のアプリで動いた / エラーが消えた>
 ````
 
-For gotchas and API quirks (no traditional bug/fix arc):
+落とし穴と API の癖の場合（典型的なバグ→修正の流れが無いもの）:
 
 ```markdown
 ## <Gotcha Title>
 
-**Behavior:** <what surprised the user>
+**Behavior:** <ユーザーが驚いたこと>
 
-**Explanation:** <why it works this way>
+**Explanation:** <なぜそう動くのか>
 
-**Workaround / Pattern:** <what to do instead>
+**Workaround / Pattern:** <代わりにどうするか>
 
-**Confirmed by:** <how it was validated>
+**Confirmed by:** <どう確かめたか>
 ```
 
-Omit sections that have nothing to say. Add a `**Notes:**` block at the end for caveats,
-related edge cases, or follow-up questions.
+書くことの無い節は省く。注意点・関連するエッジケース・追って確かめたい問いは、
+末尾に `**Notes:**` ブロックを足して書く。
 
 ---
 
-## Provenance + Confidence Calibration
+## provenance と confidence のキャリブレーション
 
-Apply provenance markers inline per `~/.claude/doc/doc_wiki_schema.md`:
+`~/.claude/doc/doc_wiki_schema.md` に従って、provenance マーカーを本文中に付ける:
 
-| Marker | When to use |
+| マーカー | 使うとき |
 |---|---|
-| `^[extracted]` | Explicitly stated in the conversation |
-| `^[inferred]` | Synthesized or generalized beyond what was directly said |
-| `^[ambiguous]` | Uncertain, potentially incomplete, or contradicted elsewhere |
+| `^[extracted]` | 会話の中で明言されたもの |
+| `^[inferred]` | 直接言われたことを超えて統合・一般化したもの |
+| `^[ambiguous]` | 不確か・不完全かもしれない・他所と矛盾している |
 
-Use the table below to set `base_confidence` and the `provenance` split.
+`base_confidence` と `provenance` の配分は、下の表で決める。
 
-**Scope: `_raw/` staging only** — `wiki-lint` never scans `_`-prefixed directories. When `/wiki-ingest`
-promotes the file, it recomputes `base_confidence` from the schema doc's Confidence formula. **Never carry
-a number from this table onto a promoted page** (Rule 12e reports it as drift and `--fix` overwrites it).
+**適用範囲: `_raw/` のステージングだけ** —— `wiki-lint` は `_` で始まるディレクトリを決して走査しない。`/wiki-ingest` が
+ファイルを昇格させるとき、schema doc の Confidence formula から `base_confidence` を計算し直す。**この表の数字を
+昇格したページへ決して持ち込まない**（Rule 12e がドリフトとして報告し、`--fix` が上書きする）。
 
-| Evidence strength | `extracted` | `inferred` | `base_confidence` |
+| 証拠の強さ | `extracted` | `inferred` | `base_confidence` |
 |---|---|---|---|
-| Build error + test pass | 0.90 | 0.10 | 0.80–0.90 |
-| Fix applied, appeared to work | 0.75 | 0.25 | 0.70–0.75 |
-| Discussed, not fully confirmed | 0.60 | 0.40 | 0.60 |
-| Reasoned from a single case | 0.50 | 0.50 | 0.55 |
+| ビルドエラー + テスト通過 | 0.90 | 0.10 | 0.80–0.90 |
+| 修正を当て、効いたように見えた | 0.75 | 0.25 | 0.70–0.75 |
+| 議論したが、確認しきれていない | 0.60 | 0.40 | 0.60 |
+| 1 件の事例から推論した | 0.50 | 0.50 | 0.55 |
 
-`extracted + inferred` should sum to 1.0 (or include a small `ambiguous` fraction if applicable).
+`extracted + inferred` の合計は 1.0 にする（当てはまるなら、小さな `ambiguous` の割合を含める）。
 
 ---
 
-## Multiple Findings in One File
+## 1 つのファイルに複数の知見を置く
 
-When several related findings belong to the same topic cluster, place them sequentially
-in the body — each as its own finding block with a `##` heading. Use a short intro paragraph
-before the first block to explain what ties them together.
+関連する複数の知見が同じ話題のクラスタに属するときは、本文に順に並べる
+—— それぞれを `##` 見出し付きの独立した知見ブロックにする。最初のブロックの前に短い導入の段落を置き、
+何がそれらを束ねているかを説明する。
 
 ```markdown
 # Swift 6 Concurrency Gotchas

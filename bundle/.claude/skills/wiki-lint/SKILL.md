@@ -3,392 +3,392 @@ name: wiki-lint
 description: Obsidian wiki の健全性を監査する（孤立ページ・壊れた wikilink・矛盾・陳腐化）。「wiki を掃除して」「何を直すべき」「ノートを監査して」「wiki のヘルスチェック」や英語の "audit my notes" / "wiki health check" と言われたときに使う。`--consolidate` で報告のみから「修復して報告」（dream cycle）へ切り替わり、dry-run とユーザーの確認を経て直す。
 ---
 
-# Wiki Lint — Health Audit
+# Wiki Lint — 健全性の監査
 
-You are performing a health check on an Obsidian wiki. Your goal is to find and fix structural issues that degrade the wiki's value over time.
+Obsidian wiki の健全性を点検する。目的は、時間とともに wiki の価値を下げていく構造上の問題を見つけて直すことである。
 
-**Before scanning anything:** follow the Retrieval Primitives table in `~/.claude/doc/doc_wiki_schema.md`. Prefer frontmatter-scoped greps and section-anchored reads over full-page reads. On a large vault, blindly reading every page to lint it is exactly what this framework is built to avoid.
+**何かを走査する前に:** `~/.claude/doc/doc_wiki_schema.md` の Retrieval Primitives の表に従う。ページ全体を読むより、frontmatter に絞った grep と節を狙った読み込みを優先する。大きな vault で lint のために全ページを闇雲に読むことこそ、この仕組みが避けるために作られたものだ。
 
-## Before You Start
+## 着手前に
 
-1. **Resolve the vault path** — use `$OBSIDIAN_VAULT_PATH` if it is already exported; otherwise walk up from CWD to `$HOME` looking for a `.env` that contains `OBSIDIAN_VAULT_PATH=` and take the first one. If neither exists, stop and tell the user to set `OBSIDIAN_VAULT_PATH` in `.claude/settings.json` (`env`), a shell rc, or direnv. Never fall back to a hard-coded path — one repo, one vault.
-2. Take the page inventory from the Check 0 script rather than reading `index.md` whole (Check 6 compares `index.md` against it)
-3. Read the tail of `log.md` for recent activity context — `grep '^- \[' "$OBSIDIAN_VAULT_PATH/log.md" | tail -30`. **Never read `log.md` whole**: it is append-only and unbounded (100 kB+ ≒ 25k tokens on an active vault). Grep for entry lines rather than plain `tail` — the file contains blank lines, so a raw `tail -N` returns fewer than N entries.
+1. **vault のパスを解決する** —— `$OBSIDIAN_VAULT_PATH` が既に export されていればそれを使う。無ければ CWD から `$HOME` まで遡って `OBSIDIAN_VAULT_PATH=` を含む `.env` を探し、最初に見つかったものを採る。どちらも無ければ止まり、`.claude/settings.json`（`env`）・shell rc・direnv のどれかで `OBSIDIAN_VAULT_PATH` を設定するようユーザーに伝える。決め打ちのパスへ決して落ちない —— 1 リポジトリに 1 vault。
+2. ページの一覧は `index.md` を丸ごと読まず、Check 0 のスクリプトから取る（Check 6 が `index.md` をそれと突き合わせる）
+3. 最近の活動の文脈として `log.md` の末尾を読む —— `grep '^- \[' "$OBSIDIAN_VAULT_PATH/log.md" | tail -30`。**`log.md` を丸ごと読まない**: 追記専用で際限なく伸びる（活発な vault では 100 kB+ ≒ 25k トークン）。素の `tail` ではなくエントリ行を grep する —— ファイルには空行が混ざるので、そのままの `tail -N` は N 件より少ないエントリしか返さない。
 
-## Lint Checks
+## lint の検査
 
-Run these checks in order; the deliverable is the single report described under Output Format.
+以下の検査を順に走らせる。成果物は「出力形式」の節に書いた 1 本のレポートである。
 
 ### 0. Build the link graph — run this first
 
-Checks 1, 2, 2a, 7, 11 and 13 all read the same graph. Build it once, with the script:
+Check 1・2・2a・7・11・13 はどれも同じグラフを読む。スクリプトで 1 回だけ作る:
 
 ```bash
 python3 ~/.claude/skills/wiki-lint/scripts/linkgraph.py "$OBSIDIAN_VAULT_PATH"
 ```
 
-It prints orphans, broken links and ambiguous links. `--quiet` gives counts only;
-`--json` adds the full graph. **The JSON is keyed by vault** — the script takes
-`vault [vault ...]`, so the top level is `{"<basename of the path you passed>": {…}}`,
-one key per argument, and everything else lives inside it: `stats`, `orphans`, `broken`,
-`ambiguous`, `pages`, `edges` (`[{from, to}]`), `incoming` (how many pages link here,
-0 included), `incoming_links` (raw count), `outgoing`, `links_to_excluded` and
-`unreadable`. Unwrap that one level before reading any of them, e.g.
-`… --json | python3 -c 'import json,sys; g=json.load(sys.stdin).popitem()[1]; print(len(g["edges"]))'`.
-Do **not** reach for `jq '.edges | length'`: a top-level key that does not exist gives
-`null | length` = `0`, so the check reports "nothing found" with no error at all.
-Checks 7 and 11 need the `--json` form.
+孤立ページ・リンク切れ・曖昧なリンクを出力する。`--quiet` なら件数だけ、
+`--json` ならグラフ全体を足す。**JSON は vault をキーにしている** —— スクリプトは
+`vault [vault ...]` を受け取るので、最上位は `{"<basename of the path you passed>": {…}}` で、
+引数 1 つにつきキー 1 つ、ほかはすべてその中にある: `stats`、`orphans`、`broken`、
+`ambiguous`、`pages`、`edges`（`[{from, to}]`）、`incoming`（ここへリンクしているページ数、
+0 も含む）、`incoming_links`（リンクの素の数）、`outgoing`、`links_to_excluded`、
+`unreadable`。どれを読むにも、先にその 1 段を剥がす。例:
+`… --json | python3 -c 'import json,sys; g=json.load(sys.stdin).popitem()[1]; print(len(g["edges"]))'`。
+`jq '.edges | length'` に手を伸ばさ**ない**: 存在しない最上位キーは
+`null | length` = `0` になるので、検査はエラーを一切出さずに「何も見つからない」と報告する。
+Check 7 と 11 には `--json` の形が要る。
 
-Two of those need action even though they are not findings:
-- **`unreadable`** — files that could not be read (dangling symlink, permission). They are
-  missing from the graph, so report them; do not silently treat them as absent.
-- **`links_to_excluded`** — links into a directory that is excluded from the scan. The
-  target exists, so this is not a broken link, but it is also not an edge. Worth a mention
-  only if the count is large — it means a directory is being treated as both.
+そのうち 2 つは、指摘ではないが対処が要る:
+- **`unreadable`** —— 読めなかったファイル（リンク先の無い symlink、権限）。グラフから
+  抜けているので報告する。黙って存在しないものとして扱わない。
+- **`links_to_excluded`** —— 走査から除外したディレクトリへのリンク。リンク先は
+  存在するのでリンク切れではないが、辺でもない。触れる価値があるのは
+  件数が多いときだけ —— あるディレクトリが両方として扱われていることを意味する。
 
-**Take the numbers from the script. Do not recount by hand, and do not "verify" a
-finding by re-grepping — a grep that disagrees with the script is the grep being wrong.**
+**数字はスクリプトから取る。手で数え直さず、指摘を grep し直して「検証」
+したりもしない —— スクリプトと食い違う grep は、grep の方が間違っている。**
 
-Counting links looks like a grep recipe but is not one: two link notations with *different*
-resolution semantics, literal link syntax inside code examples, and same-named pages in
-different directories. A hand pass gets a different answer each time (measured: the same
-instructions produced 5 orphans on one vault and 87 on another).
+リンクを数えるのは grep のレシピに見えるが、そうではない: 解決の意味が*異なる* 2 つのリンク記法、
+コード例の中に書かれたリンク構文そのもの、別のディレクトリにある
+同名のページ。手で数えると毎回違う答えになる（実測: 同じ
+指示が、ある vault では孤立ページ 5 件、別の vault では 87 件を出した）。
 
-**Fallback.** If `python3` is unavailable, follow `references/link-graph.md` and say in
-the report that you used the manual fallback — it is known to disagree with the script.
+**代替手順。** `python3` が使えなければ `references/link-graph.md` に従い、
+手作業の代替手順を使ったことをレポートに書く —— スクリプトと食い違うことが分かっている。
 
 ### 1. Orphaned Pages
 
-Pages the script lists under `orphans`: **no incoming links and no resolvable outgoing
-links**. A page that links out is not an orphan — it is reachable when you walk the graph
-backwards from anywhere it points.
+スクリプトが `orphans` に挙げるページ: **入ってくるリンクが無く、解決できる出ていくリンクも
+無い**。外へリンクしているページは孤立ページではない —— それが指す先のどこからでも、グラフを
+逆向きに辿れば到達できる。
 
-**Before reporting, check the two common false positives:**
-- **Empty file** (0 bytes). It also trips missing-frontmatter, missing-summary and
-  lifecycle checks, so one empty file shows up as four findings. `qmd` does not index
-  0-byte files either. Propose deleting it rather than filling it in.
-- **A directory that is deliberately not wiki pages** (reports, one-off exports, raw
-  source kept for reference). Add the directory to `.wikilintignore` at the vault root
-  (one glob per line, `#` for comments) instead of cross-linking it. Directories starting
-  with `_` are already excluded.
+**報告する前に、よくある 2 つの誤検知を確かめる:**
+- **空ファイル**（0 バイト）。frontmatter 欠落・summary 欠落・lifecycle の検査にも
+  引っかかるので、1 つの空ファイルが 4 件の指摘として現れる。`qmd` も 0 バイトのファイルは
+  インデックスしない。中身を埋めるのではなく、削除を提案する。
+- **意図して wiki ページにしていないディレクトリ**（レポート、一度きりのエクスポート、参照用に
+  取っておいた生のソース）。相互リンクを張るのではなく、そのディレクトリを vault ルートの
+  `.wikilintignore`（1 行に 1 つの glob、`#` でコメント）に足す。`_` で始まる
+  ディレクトリは既に除外されている。
 
-**How to fix a real orphan:**
-- Identify which existing pages should link to it
-- Add links in appropriate sections, in the notation that page already uses
+**本物の孤立ページの直し方:**
+- どの既存ページからそこへリンクすべきかを特定する
+- そのページが既に使っている記法で、適切な節にリンクを足す
 
 ### 2. Broken Links
 
-Links the script lists under `broken`: the target does not resolve to any page.
+スクリプトが `broken` に挙げるリンク: リンク先がどのページにも解決しない。
 
-**How to fix:**
-- If the target was renamed, update the link
-- If the target should exist, create it
-- If the link is wrong, remove or correct it
+**直し方:**
+- リンク先が改名されていたら、リンクを更新する
+- リンク先が存在すべきものなら、作る
+- リンクが誤りなら、消すか直す
 
 ### 2a. Ambiguous Links
 
-Links the script lists under `ambiguous`: the target matches **more than one** page, so
-there is no way to tell which one was meant. These are worse than broken links — nothing
-looks wrong in the vault, and any tool that silently picks the first match attributes the
-reference to the wrong page.
+スクリプトが `ambiguous` に挙げるリンク: リンク先が**複数の**ページに一致するので、
+どれを指したのか知る術がない。これはリンク切れより悪い —— vault の中で何もおかしく
+見えず、最初の一致を黙って選ぶツールはどれも、その参照を
+間違ったページに帰属させる。
 
-**How to fix:** qualify the link with its directory (`[[project-a/build-spec]]`
-rather than `[[build-spec]]`), or rename one of the colliding pages.
+**直し方:** リンクをディレクトリで修飾する（`[[project-a/build-spec]]`
+のように書き、`[[build-spec]]` とは書かない）か、衝突しているページの一方を改名する。
 
 ### 3. Missing Frontmatter
 
-Every page should have: title, category, tags, sources, created, updated.
+すべてのページは次を持つこと: title, category, tags, sources, created, updated。
 
-**How to check:**
-- Grep frontmatter blocks (scope to `^---` at file heads) instead of reading every page in full
-- Flag pages missing required fields
+**確かめ方:**
+- 全ページを丸ごと読まず、frontmatter のブロックを grep する（ファイル先頭の `^---` に範囲を絞る）
+- 必須フィールドが欠けているページを指摘する
 
-**How to fix:**
-- Add missing fields with reasonable defaults
+**直し方:**
+- 欠けたフィールドを妥当な既定値で足す
 
-Findings go in the `Missing Frontmatter` section (sample lines in `references/output-format.md`) and their total in `missing_frontmatter=N` on the `LINT` log entry.
+指摘は `Missing Frontmatter` の節へ（見本の行は `references/output-format.md`）、その合計は `LINT` の log エントリの `missing_frontmatter=N` へ書く。
 
 ### 3a. Missing Summary (soft warning)
 
-Every page *should* have a `summary:` frontmatter field — 1–2 sentences, ≤200 chars. This is what cheap retrieval (e.g. `wiki-query`'s index-only mode) reads to avoid opening page bodies.
+すべてのページは `summary:` frontmatter フィールドを*持つのが望ましい* —— 1〜2 文、200 字以内。安価な検索（例: `wiki-query` の index だけを読むモード）は、ページ本文を開かずに済ませるためにこれを読む。
 
-**How to check:**
-- Grep frontmatter for `^summary:` across the vault
-- Flag pages without it, **but as a soft warning, not an error** — older pages predating this field are fine; the check exists to nudge ingest skills into filling it on new writes.
-- Also flag pages whose summary exceeds 200 chars: take them from `summary_over_limit` in the metrics script run (Check 7 — run it once and reuse the output). Do not count characters by hand.
+**確かめ方:**
+- vault 全体の frontmatter を `^summary:` で grep する
+- それが無いページを指摘する。**ただしエラーではなく警告（soft）として** —— このフィールドより前からある古いページは問題ない。この検査は、ingest 系の skill が新しく書くときに埋めるよう促すためにある。
+- summary が 200 字を超えるページも指摘する: metrics スクリプトの実行結果の `summary_over_limit` から取る（Check 7 —— 1 回だけ走らせて出力を使い回す）。文字数を手で数えない。
 
-**How to fix:**
-- Re-ingest the page, or manually write a short summary (1–2 sentences of the page's content).
+**直し方:**
+- ページを取り込み直すか、短い summary（ページの内容を 1〜2 文で）を手で書く。
 
 ### 4. Stale Content
 
-Pages whose `updated` timestamp is old relative to their sources.
+`updated` のタイムスタンプが、出典に比べて古いページ。
 
-**How to check:**
-- Compare page `updated` timestamps to source file modification times
-- Flag pages where sources have been modified after the page was last updated
+**確かめ方:**
+- ページの `updated` タイムスタンプを、出典ファイルの更新時刻と比べる
+- ページが最後に更新された後で出典が変更されているページを指摘する
 
 ### 5. Contradictions
 
-Claims that conflict across pages.
+ページ間で食い違う主張。
 
-**How to check:**
-- This requires reading related pages and comparing claims
-- Focus on pages that share tags or are heavily cross-referenced
-- Look for phrases like "however", "in contrast", "despite" that may signal existing acknowledged contradictions vs. unacknowledged ones
+**確かめ方:**
+- 関連するページを読んで主張を比べる必要がある
+- タグを共有しているページや、相互参照の多いページに絞る
+- "however", "in contrast", "despite" のような言い回しを探す。既に認識されて書かれている矛盾を、認識されていない矛盾と分ける手がかりになりうる
 
-**How to fix:**
-- Add an "Open Questions" section noting the contradiction
-- Reference both sources and their claims
+**直し方:**
+- 矛盾を記す "Open Questions" 節を足す
+- 両方の出典とその主張を参照する
 
 ### 6. Index Consistency
 
-Verify `index.md` matches the actual page inventory.
+`index.md` が実際のページ一覧と一致しているかを確かめる。
 
-**How to check:**
-- Compare pages listed in `index.md` to actual files on disk
-- Each entry must be the page's `summary:` verbatim, optionally followed by a `( #tag)` suffix. The metrics script run lists the entries that are not under `index.entry_not_verbatim` (`null` when the vault has no `index.md`) — do not compare by eye. An entry that grows past its summary is how `index.md` bloated twice before.
-- When more than 3 entries are listed, report the count and 3 examples rather than every line.
-- `index.entries` is how many entries the script could match to a page. If it is far below the page count, the script did not recognise the entry format — say so; an empty `entry_not_verbatim` then means "not checked", not "no issues".
+**確かめ方:**
+- `index.md` に載っているページを、ディスク上の実際のファイルと比べる
+- 各エントリは、ページの `summary:` をそのまま写したものでなければならない（後ろに `( #tag)` の接尾辞を付けてもよい）。metrics スクリプトの実行結果が、そうなっていないエントリを `index.entry_not_verbatim` に挙げる（vault に `index.md` が無ければ `null`）—— 目で比べない。エントリが summary より長く育つことで、`index.md` は過去に 2 回膨れ上がった。
+- 挙がったエントリが 3 件を超えるときは、全行ではなく件数と 3 例を報告する。
+- `index.entries` は、スクリプトがページに対応づけられたエントリの数。これがページ数を大きく下回るなら、スクリプトはエントリの書式を認識できていない —— そう書く。その場合、空の `entry_not_verbatim` は「問題なし」ではなく「未検査」を意味する。
 
-**How to fix:** copy the page's `summary:` into the entry — never the other way. If the summary is over 200 chars, shorten the summary first (Check 3a).
+**直し方:** ページの `summary:` をエントリへ写す —— 逆向きには決してしない。summary が 200 字を超えているなら、先に summary を短くする（Check 3a）。
 
-Findings go in the `Index Issues` section (sample lines in `references/output-format.md`) and their total in `index_issues=N` on the `LINT` log entry.
+指摘は `Index Issues` の節へ（見本の行は `references/output-format.md`）、その合計は `LINT` の log エントリの `index_issues=N` へ書く。
 
 ### 7. Provenance Drift
 
-Check whether pages are being honest about how much of their content is inferred vs extracted. The marker convention (`^[extracted]` / `^[inferred]` / `^[ambiguous]` — every claim carries one) and the optional `provenance:` frontmatter block are defined in `~/.claude/doc/doc_wiki_schema.md`.
+ページが、内容のどれだけが inferred でどれだけが extracted かを正直に示しているかを確かめる。マーカーの規約（`^[extracted]` / `^[inferred]` / `^[ambiguous]` —— すべての主張がどれか 1 つを持つ）と、任意の `provenance:` frontmatter ブロックは `~/.claude/doc/doc_wiki_schema.md` で定義されている。
 
-**How to check:** take the fractions from the metrics script — do not count markers by hand (hand counts disagree with each other):
+**確かめ方:** 割合は metrics スクリプトから取る —— マーカーを手で数えない（手で数えると数え手ごとに食い違う）:
 
 ```bash
 python3 ~/.claude/skills/wiki-lint/scripts/frontmatter_metrics.py "$OBSIDIAN_VAULT_PATH"
 ```
 
-It prints JSON. Each entry under `pages` has `provenance` = `{extracted, inferred, ambiguous, n_markers, stored, drift_flag}` (`null` when the page has no marker). The denominator is the marker total, with markers inside code excluded. The same run feeds Check 3a (`summary_over_limit`), Check 6 (`index`), Check 8 (`clusters`) and Rule 12e (`base_confidence`), so run it once.
+JSON を出力する。`pages` の下の各エントリは `provenance` = `{extracted, inferred, ambiguous, n_markers, stored, drift_flag}` を持つ（ページにマーカーが無ければ `null`）。分母はマーカーの総数で、コードの中のマーカーは除く。同じ実行結果が Check 3a（`summary_over_limit`）・Check 6（`index`）・Check 8（`clusters`）・Rule 12e（`base_confidence`）にも使われるので、1 回だけ走らせる。
 
-- Apply these thresholds:
-  - **AMBIGUOUS > 15%**: flag as "speculation-heavy" — even 1-in-7 claims being genuinely uncertain is a signal the page needs tighter sourcing or should be moved to `synthesis/`
-  - **INFERRED > 40% with no `sources:` in frontmatter**: flag as "unsourced synthesis" — the page is making connections but has nothing to cite
-  - **Hub pages** (top 10 by incoming count — take these from the Check 0 graph, do not re-derive) with INFERRED > 40%: flag as "high-traffic page with questionable provenance" — errors on hub pages propagate to every page that links to them. 40%, not the upstream 20%: pages mark only part of their claims and the unmarked rest is mostly extracted, so a marker-total fraction runs about twice a per-claim one. On the reference vault 20% flagged 9 of 10 hubs; 40% flags the same 2 that 20% flagged when unmarked claims were counted as extracted
-  - **Drift**: `drift_flag` is true — the stored `provenance:` block is more than 0.20 off the recomputed value in some field
-- **Skip** pages with no `provenance:` frontmatter and no markers — treated as fully extracted by convention
+- 次の閾値を当てはめる:
+  - **AMBIGUOUS > 15%**: "speculation-heavy"（推測が多い）として指摘する —— 主張の 7 件に 1 件が本当に不確かなだけでも、ページの出典をもっと固めるか、`synthesis/` へ移すべきだという合図だ
+  - **frontmatter に `sources:` が無く INFERRED > 40%**: "unsourced synthesis"（出典の無い統合）として指摘する —— ページはつながりを作っているが、引ける出典が何も無い
+  - INFERRED > 40% の**ハブページ**（incoming の上位 10 件 —— Check 0 のグラフから取り、導き直さない）: "high-traffic page with questionable provenance"（参照が多いのに provenance が怪しいページ）として指摘する —— ハブページの誤りは、そこへリンクするすべてのページへ広がる。上流（移植元）の 20% ではなく 40%: ページは主張の一部にしかマーカーを付けず、付いていない残りの大半は extracted なので、マーカー総数を分母にした割合は主張単位の割合のおよそ 2 倍になる。基準にした vault では、20% だとハブ 10 件中 9 件が指摘された。40% なら、付いていない主張を extracted として数えたときに 20% が指摘したのと同じ 2 件を指摘する
+  - **ドリフト**: `drift_flag` が true —— 保存された `provenance:` ブロックが、どれかのフィールドで再計算値から 0.20 を超えてずれている
+- `provenance:` frontmatter もマーカーも無いページは**飛ばす** —— 規約上、すべて extracted とみなす
 
-**How to fix:**
-- For ambiguous-heavy: re-ingest from sources, resolve the uncertain claims, or split speculative content into a `synthesis/` page
-- For unsourced synthesis: add `sources:` to frontmatter or clearly label the page as synthesis
-- For hub pages with INFERRED > 40%: prioritize for re-ingestion — errors here have the widest blast radius
-- For drift: update the `provenance:` frontmatter to match the recomputed values
+**直し方:**
+- ambiguous が多いもの: ソースから取り込み直す、不確かな主張を解消する、または推測の内容を `synthesis/` のページへ切り出す
+- 出典の無い統合（unsourced synthesis）: frontmatter に `sources:` を足すか、そのページが synthesis であることをはっきり示す
+- INFERRED > 40% のハブページ: 取り込み直しを優先する —— ここの誤りは影響範囲が最も広い
+- ドリフト: `provenance:` frontmatter を再計算値に合わせて更新する
 
 ### 8. Fragmented Tag Clusters
 
-Checks whether pages that share a tag are actually linked to each other. Tags imply a topic cluster; if those pages don't reference each other, the cluster is fragmented — knowledge islands that should be woven together.
+タグを共有するページが、実際に互いにリンクしているかを確かめる。タグは話題のまとまり（クラスタ）を示す。それらのページが互いを参照していなければクラスタは断片化している —— 編み合わせるべき知識の孤島である。
 
-**How to check:** read `clusters` from the Check 7 script run. It lists every tag on ≥ 5 pages with `n`, `linked_pairs` (pairs of pages in the group linked in either direction — a pair counts once) and `cohesion = linked_pairs / (n × (n−1) / 2)`. Flag any tag whose cohesion is below 0.15.
+**確かめ方:** Check 7 のスクリプトの実行結果から `clusters` を読む。5 ページ以上に付いているタグをすべて、`n`、`linked_pairs`（グループ内でどちらかの向きにリンクしているページの組 —— 1 組は 1 回だけ数える）、`cohesion = linked_pairs / (n × (n−1) / 2)` とともに挙げる。結束度（cohesion）が 0.15 未満のタグを指摘する。
 
-**How to fix:**
-- Report the cluster with its cohesion score. Weaving it together means adding links between pages in the group — that is a body write, so do it deliberately: use the notation each page already uses, and add a few links per page rather than cross-linking every pair
-- If a tag group is large (n > 15) and still fragmented, consider splitting it into more specific sub-tags
+**直し方:**
+- クラスタを結束度のスコアとともに報告する。編み合わせるとはグループ内のページ間にリンクを足すことで —— それは本文への書き込みなので、慎重に行う: 各ページが既に使っている記法を使い、すべての組を相互リンクするのではなく、1 ページあたり数本のリンクを足す
+- タグのグループが大きく（n > 15）、それでも断片化しているなら、より具体的なサブタグへの分割を検討する
 
 ### 8a. Over-Tagged and Malformed Tags
 
-The tag rules are in `~/.claude/doc/doc_wiki_schema.md`: **at most 5 tags per page**,
-lowercase, hyphen-separated, reusing existing tags where possible. `visibility/` tags are a
-reserved group and do **not** count toward the 5.
+タグの規則は `~/.claude/doc/doc_wiki_schema.md` にある: **1 ページあたりタグは最大 5 個**、
+小文字、ハイフン区切り、できるだけ既存のタグを使い回す。`visibility/` タグは
+予約されたグループで、5 個に数え**ない**。
 
-Nothing checks the limit at write time, so a vault that grew without audits carries a
-backlog. The doc above is the only authority for the limit and the vocabulary.
+書き込み時に上限を検査するものは何も無いので、監査なしで育った vault は
+未処理分（backlog）を抱えている。上限と語彙の唯一の典拠は上の doc である。
 
-**How to check:**
-- Grep frontmatter for `^tags:` — handle **both** the inline `[a, b]` form and the
-  block-list form (`tags:` followed by `- a` lines); pages here use both, and a regex that
-  only knows one form silently reports a smaller number
-- Drop `visibility/*` entries, then flag pages with **6 or more** remaining tags
-- Separately flag tags that are not lowercase-and-hyphen — an uppercase letter, an
-  underscore, or a space inside the tag
+**確かめ方:**
+- frontmatter を `^tags:` で grep する —— インラインの `[a, b]` 形式と、
+  ブロックリスト形式（`tags:` の後に `- a` の行が続く）の**両方**を扱う。ここのページは両方を使っており、
+  一方の形式しか知らない正規表現は、黙って小さい数を報告する
+- `visibility/*` のエントリを除き、残りのタグが **6 個以上**のページを指摘する
+- それとは別に、小文字とハイフンだけでできていないタグを指摘する —— 大文字、
+  アンダースコア、空白のいずれかをタグの中に含むもの
 
-**Report counts plus the worst offenders, never one finding per page.** Dozens of
-per-page findings push every other section out of the report, and the backlog predates
-the check. The section is:
-- one line with the count and the distribution (`27 pages over 5 tags — 26 at 6, 1 at 7`)
-- the **top 5 by tag count**, worst first, as individual lines
-- one line per malformed tag *name* (not per page), with how many pages carry it
+**件数と最もひどいものだけを報告し、ページごとに 1 件ずつ報告しない。** ページ単位の
+指摘が何十件も並ぶと他の節がすべてレポートから押し出されるし、未処理分は
+この検査より前からある。節の中身は:
+- 件数と分布の 1 行（`27 pages over 5 tags — 26 at 6, 1 at 7`）
+- **タグ数の上位 5 件**を、ひどい順に 1 件 1 行で
+- 形式の崩れたタグの*名前*ごとに 1 行（ページごとではない）、それを持つページ数を添えて
 
-**A count that stays flat is the expected state, not a finding.** What carries information
-is the delta against the previous `over_tagged=` in `log.md`: a count that grew means a
-write path added tags past the limit, and that is worth naming in the report.
+**件数が横ばいなのは想定どおりの状態で、指摘ではない。** 情報を持つのは
+`log.md` にある前回の `over_tagged=` との差分だ: 件数が増えたなら、
+どこかの書き込み経路が上限を超えてタグを足したということで、それはレポートで名指しする価値がある。
 
-**How to fix:** n/a for `--fix`. Which tag to drop is decided by what the page is about and
-lint does not read page bodies, so deleting the sixth tag removes whichever one happens to
-sort last. Renaming a malformed tag means rewriting every page that carries it — a
-vault-wide write. Surface both for the user, or for the next skill that opens the page with
-its body in context.
+**直し方:** `--fix` では n/a。どのタグを落とすかはページが何についてのものかで決まり、
+lint はページ本文を読まないので、6 個目のタグを消すと、たまたま最後に並んだものが
+消えるだけになる。形式の崩れたタグの改名は、それを持つすべてのページの書き換えを意味する ——
+vault 全体への書き込みだ。どちらも、ユーザーか、本文を文脈に入れてそのページを開く
+次の skill に向けて示す。
 
-Findings go in the `Over-Tagged and Malformed Tags` section (sample lines in
-`references/output-format.md`) and their totals in two keys on the `LINT` log entry:
-`over_tagged=N` (pages over the limit) and `malformed_tags=N` (distinct tag names, not
-pages). Two units, two keys — folding them into one makes the delta unreadable.
+指摘は `Over-Tagged and Malformed Tags` の節へ（見本の行は
+`references/output-format.md`）、その合計は `LINT` の log エントリの 2 つのキーへ書く:
+`over_tagged=N`（上限を超えたページ数）と `malformed_tags=N`（ページ数ではなく、
+異なるタグ名の数）。単位が 2 つだからキーも 2 つ —— 1 つにまとめると差分が読めなくなる。
 
 ### 9. Visibility Tag Consistency
 
-Checks that `visibility/` tags are applied correctly and aren't silently missing where they matter.
+`visibility/` タグが正しく付いているか、必要な場所で黙って欠けていないかを確かめる。
 
-**How to check:**
+**確かめ方:**
 
-- **Untagged PII patterns:** Grep page bodies for patterns that commonly indicate sensitive data — lines containing `password`, `api_key`, `secret`, `token`, `ssn`, `email:`, `phone:` followed by an actual value (not a field description). If a page matches and lacks `visibility/pii` or `visibility/internal`, flag it as a likely mis-classification.
-- **`visibility/pii` without `sources:`:** A page tagged `visibility/pii` should always have a `sources:` frontmatter field — if there's no provenance, there's no way to verify the classification. Flag any `visibility/pii` page missing `sources:`.
+- **タグの無い PII のパターン:** 機微なデータをよく示すパターンでページ本文を grep する —— `password`、`api_key`、`secret`、`token`、`ssn`、`email:`、`phone:` の後に実際の値（フィールドの説明ではない）が続く行。ページが一致し、`visibility/pii` も `visibility/internal` も無ければ、分類の誤りの疑いとして指摘する。
+- **`sources:` の無い `visibility/pii`:** `visibility/pii` を付けたページは、必ず `sources:` frontmatter フィールドを持つべきである —— provenance が無ければ、分類を検証する術がない。`sources:` の無い `visibility/pii` のページはすべて指摘する。
 
-**How to fix:**
-- For untagged PII patterns: add `visibility/pii` (or `visibility/internal` if it's team-context rather than personal data) to the page's frontmatter tags
-- For missing `sources:`: add provenance or escalate to the user — don't auto-fill
+**直し方:**
+- タグの無い PII のパターン: ページの frontmatter のタグに `visibility/pii` を足す（個人データではなくチーム内の文脈なら `visibility/internal`）
+- `sources:` の欠落: provenance を足すか、ユーザーへ上げる —— 自動で埋めない
 
 ### 10. Misc Promotion Candidates (only when `misc/` exists)
 
-**Glob `$OBSIDIAN_VAULT_PATH/misc/*.md` first. If there are no matches, skip this check
-entirely — no finding, no report section.** Only the URL-ingest path files pages there, so a
-vault that has never used it has no `misc/` at all, and a check that reports "0 candidates"
-every run is a line nobody reads.
+**最初に `$OBSIDIAN_VAULT_PATH/misc/*.md` を Glob する。一致が無ければ、この検査を
+丸ごと飛ばす —— 指摘もレポートの節も出さない。** そこへページを置くのは URL 取り込みの経路だけなので、
+それを一度も使っていない vault には `misc/` がそもそも無く、毎回「候補 0 件」と報告する検査は
+誰も読まない 1 行になる。
 
-**How to check:** read the `affinity` frontmatter field of each `misc/` page and flag any
-where a single project's score is ≥ 3.
+**確かめ方:** `misc/` の各ページの `affinity` frontmatter フィールドを読み、
+どれか 1 つのプロジェクトのスコアが 3 以上のものを指摘する。
 
-**How to fix:** move the page to `projects/<project-name>/references/` (or another
-appropriate category), update its `category` frontmatter, remove `promotion_status`, and
-grep the vault for backlinks to update them. If `affinity` is empty on a page that carries
-many wikilinks, the score is stale rather than low — say so instead of promoting on it.
+**直し方:** ページを `projects/<project-name>/references/`（または別の
+適切なカテゴリ）へ移し、`category` frontmatter を更新し、`promotion_status` を消し、
+vault を grep して被リンクを見つけて更新する。wikilink を多く持つページで `affinity` が
+空なら、スコアは低いのではなく古い —— それを根拠に昇格させず、そう書く。
 
 ### 11. Synthesis Gaps
 
-Identify high-value synthesis opportunities the wiki is missing — concept pairs that co-occur across many pages but have no `synthesis/` page connecting them.
+wiki に欠けている、価値の高い統合（synthesis）の機会を見つける —— 多くのページで共起しているのに、それらをつなぐ `synthesis/` ページが無い概念の組。
 
-**How to check:**
-- List all pages in `synthesis/` — collect the concept pairs each one already covers (from its links or title)
-- Pick 10-15 frequently linked concepts from `concepts/` and `entities/` — rank them by
-  the incoming counts from the Check 0 graph
-- For each pair, count the pages that link to **both**. Use the `edges` list from
-  `--json`: it is `[{from, to}]` over resolved links, so the pages linking to a concept are
-  the `from` values of the edges whose `to` is that concept's path. Intersect the two sets.
+**確かめ方:**
+- `synthesis/` のページをすべて挙げる —— それぞれが既に扱っている概念の組を（リンクかタイトルから）集める
+- `concepts/` と `entities/` から、よくリンクされる概念を 10〜15 個選ぶ —— Check 0 のグラフの
+  incoming の数で順位づけする
+- 各組について、**両方**へリンクしているページを数える。`--json` の `edges` のリストを
+  使う: 解決したリンクについての `[{from, to}]` なので、ある概念へリンクしているページは、
+  `to` がその概念のパスである辺の `from` の値だ。2 つの集合の共通部分を取る。
 
-  Do **not** count with `grep -rl "\[\[ConceptA\]\]"`. That pattern misses
-  `[[concepts/ConceptA]]`, `[[ConceptA|label]]` and `[label](concepts/ConceptA.md)`, and
-  it counts syntax examples inside code fences. On the two vaults here it would find
-  roughly a third of the real co-occurrences on one and almost none on the other.
-- Flag pairs with co-occurrence ≥ 3 that have no existing synthesis page
+  `grep -rl "\[\[ConceptA\]\]"` で数え**ない**。このパターンは
+  `[[concepts/ConceptA]]`・`[[ConceptA|label]]`・`[label](concepts/ConceptA.md)` を取りこぼし、
+  コードフェンスの中の構文の例まで数える。ここの 2 つの vault では、本当の共起のうち
+  一方でおよそ 3 分の 1 しか、もう一方ではほとんど何も見つけられないはずだ。
+- 共起が 3 以上で、既存の synthesis ページが無い組を指摘する
 
-**How to fix:** report the pair. Filling the gap means writing a new `synthesis/` page from
-the bodies of the pages involved — a write with the content in context, which lint does not
-have. Do not create a stub page just to close the gap.
+**直し方:** その組を報告する。穴を埋めるとは、関わるページの本文から新しい `synthesis/` ページを
+書くことで —— 内容を文脈に入れての書き込みであり、lint はそれを持って
+いない。穴を塞ぐためだけにスタブのページを作らない。
 
 ### 12. Confidence and Lifecycle Schema
 
-Enforces the confidence + lifecycle frontmatter schema. **The rubric is the sole authority on the allowed set, on which rank each value sits at, and on how a rank is decided: `~/.claude/doc/doc_wiki_lifecycle_rubric.md`.** Never copy the allowed set or the rank assignment into this file or any other skill. Refer to ranks, not to value names.
+confidence と lifecycle の frontmatter スキーマを守らせる。**許される値の集合、各値がどの段に位置するか、段の決め方の唯一の典拠はルーブリックである: `~/.claude/doc/doc_wiki_lifecycle_rubric.md`。** 許される値の集合や段の割り当てを、このファイルにも他のどの skill にも決して写さない。値の名前ではなく段で指す。
 
-Two modes:
-- **`--check`** (default, read-only) — reports errors and warnings
-- **`--fix`** — may rewrite `base_confidence` only when drift is detected (Rule 12e); never rewrites `lifecycle`
+モードは 2 つ:
+- **`--check`**（既定・読み取りのみ）—— エラーと警告を報告する
+- **`--fix`** —— ドリフトを検出したときに限り `base_confidence` を書き換えてよい（Rule 12e）。`lifecycle` は決して書き換えない
 
 #### Rule 12a — `lifecycle` enum validation
 
-**How to check:** Grep frontmatter for `^lifecycle:` across all pages, extract the values, and compare **as a set** against the allowed set in the rubric.
+**確かめ方:** 全ページの frontmatter を `^lifecycle:` で grep し、値を取り出し、ルーブリックにある許される値の集合と**集合として**比べる。
 
-**Never grep for an individual value.** Two failure modes, both silent:
-- `grep 'lifecycle: verified'` matches only `verified` — it does not see a value that gained a prefix or a synonym, so a new rank is skipped without any error
-- bare `grep verified` matches the word wherever it appears in `log.md` entries and page bodies, so the count is not a page count at all
+**個々の値で決して grep しない。** そうすると 2 通りの失敗が起き、どちらも黙って起きる:
+- `grep 'lifecycle: verified'` は `verified` にしか一致しない —— 接頭辞が付いた値や同義語を見ないので、新しい段がエラーも出ずに飛ばされる
+- 素の `grep verified` は、`log.md` のエントリやページ本文のどこに出てきてもその語に一致するので、件数がまったくページ数にならない
 
-The allowed set — ranked and unranked — is in the rubric (§序列 / §序列外). Read it there; do not copy the values into this file.
+許される値の集合は —— 序列内も序列外も —— ルーブリックにある（§序列 / §序列外）。そこで読み、値をこのファイルへ写さない。
 
-**Legacy values (a vault not yet converted to the rubric):** `{active, stable}` predate the rubric. Report them as **one warning line carrying a count**, never one finding per page — per-page findings drown the whole report.
+**旧値（まだルーブリックへ移行していない vault）:** `{active, stable}` はルーブリックより前の値だ。**件数を添えた 1 行の警告**として報告し、ページごとに 1 件ずつ報告しない —— ページ単位の指摘はレポート全体を埋もれさせる。
 
-**How to fix:** n/a — `--fix` never writes `lifecycle`: the rank is decided by the evidence in the page body (rubric R1–R4), and lint does not read bodies. Only a skill that has the body in context may set it.
+**直し方:** n/a —— `--fix` は `lifecycle` を決して書かない: 段はページ本文の証拠で決まり（ルーブリックの R1–R4）、lint は本文を読まない。それを設定してよいのは、本文を文脈に持っている skill だけだ。
 
 #### Rule 12b — `base_confidence` range
 
-**How to check:** Grep frontmatter for `^base_confidence:` across all pages. Flag any value outside `[0.0, 1.0]` or any page missing the field entirely.
+**確かめ方:** 全ページの frontmatter を `^base_confidence:` で grep する。`[0.0, 1.0]` の外にある値と、このフィールドがまったく無いページを指摘する。
 
-**How to fix:** n/a (wrong value means the skill computed it wrong — surface for manual correction)
+**直し方:** n/a（値が誤っているのは skill の計算が誤っていたということ —— 手で直すよう示す）
 
 #### Rule 12c — Stale page report (computed overlay)
 
-Staleness is never stored — it is computed at read time from `evidence_at` (fall back to `updated:` when the page has no `evidence_at`): `is_stale = (today − date) > 90 days`.
+陳腐化は決して保存しない —— 読むときに `evidence_at` から計算する（ページに `evidence_at` が無ければ `updated:` へ落ちる）: `is_stale = (today − date) > 90 days`。
 
-**How to check:** Compute `is_stale` per page, then branch on the **rank** its `lifecycle` value sits at (rubric §序列 for the ranks, §序列外 for the values outside the ladder). Match values as a set, never as a substring:
+**確かめ方:** ページごとに `is_stale` を計算し、その `lifecycle` の値が位置する**段**で分岐する（段はルーブリックの §序列、はしごの外の値は §序列外）。値は集合として照合し、決して部分文字列として照合しない:
 
-| Target | Stale behavior |
+| 対象 | 陳腐化したときの扱い |
 |---|---|
-| ranks 5–6 (the rungs a human approved) | Louder annotation — a human vouched for this and the ground may have moved since |
-| ranks 3–4 (the rungs an AI checked) | Standard warning, worded as **re-verify**. Never phrase it as a demotion — re-running an AI check is cheap, and the rubric forbids lint from writing `lifecycle` |
-| ranks 1–2 (the bottom of the ladder) | **Skip.** Age adds no information |
-| `index` (unranked) | Standard warning — an index nobody has touched in 90 days is the exact failure it exists to prevent |
-| every other unranked value | Skip — outside the ladder, not a claim about freshness |
+| rank 5–6（人間が承認した段） | より強い注記 —— 人間がこれを保証しており、その後に前提が動いたかもしれない |
+| rank 3–4（AI が確かめた段） | 標準の警告で、**再検証**として書く。決して降格として書かない —— AI の検査を走らせ直すのは安く、ルーブリックは lint が `lifecycle` を書くことを禁じている |
+| rank 1–2（はしごの最下部） | **飛ばす。** 古さは情報を足さない |
+| `index`（序列外） | 標準の警告 —— 90 日誰も触れていない索引こそ、それが防ぐために存在する失敗そのものだ |
+| その他の序列外の値すべて | 飛ばす —— はしごの外にあり、鮮度についての主張ではない |
 
-**How to fix:** `--fix` does **not** rewrite `lifecycle`. Staleness clears when a re-check bumps `evidence_at`.
+**直し方:** `--fix` は `lifecycle` を書き換え**ない**。陳腐化は、再確認で `evidence_at` が更新されたときに解消する。
 
 #### Rule 12d — Supersession integrity
 
-**How to check:** For each page with `superseded_by: "[[target]]"`:
-- Verify the target page exists
-- Verify the target page is not itself `archived` (no circular or chained supersession)
-- Verify there are no cycles (A supersedes B which supersedes A)
-- Warn if `lifecycle != archived` while `superseded_by` is set (inconsistent state)
+**確かめ方:** `superseded_by: "[[target]]"` を持つ各ページについて:
+- 指す先のページが存在することを確かめる
+- 指す先のページ自体が `archived` でないことを確かめる（循環や連鎖した後継関係がない）
+- 循環が無いことを確かめる（A が B を置き換え、その B が A を置き換える）
+- `superseded_by` が設定されているのに `lifecycle != archived` なら警告する（不整合な状態）
 
-**How to fix:** n/a — flag for human resolution
+**直し方:** n/a —— 人間が解決するよう指摘する
 
 #### Rule 12e — Confidence drift
 
-**How to check:** read `base_confidence` from the Check 7 script run (`null` unless the page has both `base_confidence:` and `sources:`). Each entry has `stored`, `recomputed`, `drift`, `drift_flag` (|drift| > 0.05) and `sources` — how each line was folded into a `source_id` and bucket per the defaults in `~/.claude/doc/doc_wiki_schema.md`. Before flagging, read the `sources` of the flagged pages: when a bucket is plainly wrong for a source (a vendor doc classed `unknown`), rerun with `--bucket <source_id>=<bucket>` rather than accepting the number.
+**確かめ方:** Check 7 のスクリプトの実行結果から `base_confidence` を読む（ページが `base_confidence:` と `sources:` の両方を持たなければ `null`）。各エントリは `stored`、`recomputed`、`drift`、`drift_flag`（|drift| > 0.05）、そして `sources` —— 各行が `~/.claude/doc/doc_wiki_schema.md` の既定に従ってどの `source_id` とバケットへまとめられたか —— を持つ。指摘する前に、指摘するページの `sources` を読む: ある出典に対してバケットが明らかに誤っているとき（ベンダーの doc が `unknown` に分類されている等）は、数字を受け入れず `--bucket <source_id>=<bucket>` を付けて走らせ直す。
 
-**How to fix (`--fix` only):** rerun the script with `--fix-confidence` (plus the same `--bucket` overrides). It rewrites only the `base_confidence:` line of drifting pages. This is the **only rule** that mutates frontmatter automatically.
+**直し方（`--fix` のときだけ）:** `--fix-confidence` を付けてスクリプトを走らせ直す（同じ `--bucket` の上書きも付ける）。ドリフトしたページの `base_confidence:` の行だけを書き換える。frontmatter を自動で書き換えるのは、これが**唯一のルール**だ。
 
 #### Rule 12f — Evidence requirements for ranked pages
 
-A rank asserts that an action was taken (rubric: *the axis records the act, not a self-assessed confidence*). This rule checks the page still carries a pointer to that act. **Without this rule the ladder is prose only** — and prose without a check drifts.
+段は、ある行為がなされたことを主張する（ルーブリック: *この軸は自己評価の信頼度ではなく、行為を記録する*）。このルールは、ページがその行為への手がかりをまだ持っているかを確かめる。**このルールが無ければ、はしごは散文でしかない** —— そして検査の無い散文はずれていく。
 
-**How to check:** For pages at ranks 2–6 (rubric §序列 — the ranks the rubric requires evidence for):
+**確かめ方:** rank 2–6 のページについて（ルーブリックの §序列 —— ルーブリックが証拠を要求する段）:
 
-- `lifecycle_evidence` present and non-empty → else **error**
-- `evidence_at` present and parseable as an ISO date → else **error**
-- The section or table that `lifecycle_evidence` names still exists in the body → else **warn** ("evidence was edited away; the rank is now unbacked")
+- `lifecycle_evidence` があり、空でない → でなければ**エラー**
+- `evidence_at` があり、ISO 日付として解釈できる → でなければ**エラー**
+- `lifecycle_evidence` が名指す節か表が、まだ本文にある → でなければ**警告**（「証拠が編集で消された。この段はもう裏付けが無い」）
 
-For ranks 3–4 additionally **warn** when the body carries none of the shapes the rubric requires for that rank — they are the *証拠として本文にあるべきもの* column of §序列. Read the shapes there; do not copy them into this file.
+rank 3–4 では加えて、ルーブリックがその段に要求する形を本文が 1 つも持たないとき**警告**する —— それは §序列 の *証拠として本文にあるべきもの* の列にある。形はそこで読み、このファイルへ写さない。
 
-Skip rank 1 and the whole unranked set (rubric §序列外).
+rank 1 と序列外の集合全体は飛ばす（ルーブリックの §序列外）。
 
-**This last check is a heuristic over prose and will produce false positives.** Keep it a warning, never an error, and never let `--fix` act on it. If it fires often enough to be noise, the fix is to tighten the rubric's decision table — not to widen the accepted shapes.
+**この最後の検査は散文に対するヒューリスティックで、誤検知を出す。** 警告に留めて決してエラーにせず、`--fix` にも決して手を出させない。ノイズになるほど頻繁に鳴るなら、直すべきはルーブリックの決定表を引き締めることで —— 受け入れる形を広げることではない。
 
-**How to fix:** n/a — surface it for the next skill that touches the page with the body in context.
+**直し方:** n/a —— 本文を文脈に持ってそのページに触れる次の skill に向けて示す。
 
-Findings from Rules 12a–12f go in the `Confidence/Lifecycle Issues` section (sample lines in `references/output-format.md`) and their total in `lifecycle_issues=N` on the `LINT` log entry.
+Rule 12a–12f の指摘は `Confidence/Lifecycle Issues` の節へ（見本の行は `references/output-format.md`）、その合計は `LINT` の log エントリの `lifecycle_issues=N` へ書く。
 
 ### 13. Typed Relationships Validity
 
-Validate `relationships:` frontmatter blocks. Skip pages that have no `relationships:` block — the field is optional.
+`relationships:` frontmatter ブロックを検証する。`relationships:` ブロックの無いページは飛ばす —— このフィールドは任意だ。
 
-**Allowed types:** the single source of truth is the **Typed Relationships table in
-`~/.claude/doc/doc_wiki_schema.md`** — 10 concepts, 16 spellings; directional types are
-valid in both their forward and reverse spellings. Read that table before checking.
-Never copy the set into this file.
+**許される型:** 唯一の正典は **`~/.claude/doc/doc_wiki_schema.md` の
+Typed Relationships の表**だ —— 10 の概念・16 の綴り。向きのある型は
+順方向と逆方向の両方の綴りで有効。検査する前にその表を読む。
+その集合をこのファイルへ決して写さない。
 
-**How to check:**
-- Grep frontmatter for `^relationships:` across all vault pages
-- For each page that has a `relationships:` block, read its frontmatter (not the full page body)
-- For each entry in the block:
-  1. **Type validation** — report any `type:` value not in the schema doc's table **as a
-     warning, not a failure** (see below)
-  2. **Broken target** — the link graph from Check 0 already resolved these; a `target:`
-     that appears in its `broken` or `ambiguous` list is the finding. Do not re-resolve by hand.
-  3. **Self-reference** — flag any entry where the resolved target equals the page's own node id
+**確かめ方:**
+- vault の全ページの frontmatter を `^relationships:` で grep する
+- `relationships:` ブロックを持つ各ページについて、その frontmatter を読む（ページ本文全体は読まない）
+- ブロックの各エントリについて:
+  1. **型の検証** —— schema doc の表に無い `type:` の値を、**失敗ではなく
+     警告として**報告する（下を参照）
+  2. **リンク切れの target** —— Check 0 のリンクグラフがこれらを既に解決している。その `broken` か
+     `ambiguous` のリストに出てくる `target:` が指摘だ。手で解決し直さない。
+  3. **自己参照** —— 解決した target がそのページ自身の node id と等しいエントリを指摘する
 
-**Out-of-enum types are a warning.** The out-of-enum types found so far were all written
-by `wiki-update` / `wiki-ingest` — the same bundle that defines the enum — so an
-out-of-enum type usually means the vocabulary splitting inside one system, not a user
-error, and the targets resolve fine. Reporting them as failures buries the findings that
-are actually broken. Only unresolved targets and missing required frontmatter are failures.
+**enum 外の型は警告である。** これまでに見つかった enum 外の型は、どれも
+`wiki-update` / `wiki-ingest` が書いたもの —— enum を定義しているのと同じバンドル —— なので、
+enum 外の型はたいてい、ユーザーの誤りではなく 1 つのシステムの中で語彙が割れていることを
+意味し、target も問題なく解決する。それらを失敗として報告すると、本当に壊れている
+指摘が埋もれる。失敗とするのは、解決しない target と必須の frontmatter の欠落だけだ。
 
-**Known aliases — normalize on sight.** Same direction, same meaning, and the target is
-inside the enum, so the substitution is purely mechanical. **This table's home is here in
-wiki-lint** — the schema doc deliberately carries no copy and points to this file:
+**既知の別名 —— 見つけ次第正規化する。** 向きも意味も同じで、置き換え先の型は
+enum の中にあるので、置き換えは純粋に機械的だ。**この表の置き場はここ
+wiki-lint である** —— schema doc は意図して写しを持たず、このファイルを指している:
 
-| written | normalize to |
+| 書かれた値 | 正規化先 |
 |---|---|
 | `relates_to` | `related_to` |
 | `supersedes` | `replaces` |
@@ -399,60 +399,60 @@ wiki-lint** — the schema doc deliberately carries no copy and points to this f
 | `applies` | `uses` |
 | `applied_by` | `used_by` |
 
-**Concepts the enum does not have: report, do not rewrite.** A type that is neither in
-the schema doc's table nor in the alias table has nothing to normalize toward — mapping
-it to `related_to` throws away the distinction that made someone write it. Leave the
-entry as it is and report it; widening the enum is a schema decision, not a lint fix.
+**enum に無い概念: 報告し、書き換えない。** schema doc の表にも別名の表にも無い型には、
+正規化する先が無い —— それを
+`related_to` に寄せると、誰かがそれを書いた理由である区別を捨てることになる。エントリは
+そのまま残して報告する。enum を広げるのは schema の判断であって、lint の修正ではない。
 
-**How to fix:**
-- Alias type: normalize per the table above
-- `type: superseded_by` / `type: replaced_by`: not a relationship type — the page belongs in
-  `lifecycle: archived` with the **top-level** `superseded_by:` field (a different namespace;
-  see the schema doc's Confidence and Lifecycle section). Report it with that pointer
-- Unknown type: leave it and report it; widening the enum is a schema decision
-- Broken target: update or remove the entry; if the target page should exist, create it first
-- Self-reference: remove the entry
+**直し方:**
+- 別名の型: 上の表に従って正規化する
+- `type: superseded_by` / `type: replaced_by`: 関係の型ではない —— そのページは
+  `lifecycle: archived` にし、**最上位の** `superseded_by:` フィールドを持たせるべきだ（別の名前空間。
+  schema doc の Confidence and Lifecycle の節を参照）。その案内を添えて報告する
+- 未知の型: そのまま残して報告する。enum を広げるのは schema の判断だ
+- リンク切れの target: エントリを更新するか消す。target のページが存在すべきなら、先にそれを作る
+- 自己参照: エントリを消す
 
-Findings go in the `Typed Relationship Issues` section (sample lines in `references/output-format.md`) and their total in `relationship_issues=N` on the `LINT` log entry.
+指摘は `Typed Relationship Issues` の節へ（見本の行は `references/output-format.md`）、その合計は `LINT` の log エントリの `relationship_issues=N` へ書く。
 
-## Output Format
+## 出力形式
 
-Write the findings as a `## Wiki Health Report` with one `###` section per check, in check
-order. **The template and a sample line for every section are in
-`references/output-format.md` — follow it rather than inventing a layout**, and omit any
-section whose check found nothing.
+指摘は `## Wiki Health Report` として書き、検査ごとに `###` の節を 1 つずつ、検査の
+順に並べる。**雛形と、すべての節の見本の行は
+`references/output-format.md` にある —— レイアウトを作り出さず、それに従う**。何も見つからなかった検査の
+節は省く。
 
-## After Linting
+## lint の後で
 
-Append **one** line to `log.md` — this is the whole format, every key present every run:
+`log.md` に **1 行だけ**追記する —— これが書式のすべてで、毎回すべてのキーを書く:
 ```
 - [TIMESTAMP] LINT issues_found=N orphans=X broken_links=Y ambiguous_links=A missing_frontmatter=FM missing_summary=S stale=Z contradictions=W index_issues=I prov_issues=P fragmented_clusters=F over_tagged=T malformed_tags=MT visibility_issues=V promotion_candidates=C synthesis_gaps=G lifecycle_issues=L relationship_issues=R graph=script|manual
 ```
 
-Key order is check order. `issues_found` is **not** the sum of the other keys — past runs
-recorded 111 against a key sum of 151, and 71 against 103 — so a count with no key of its
-own is unrecoverable, not merely aggregated. Every check with a report section has a key
-here for that reason; add one in the same edit that adds a section.
+キーの順は検査の順。`issues_found` は他のキーの合計では**ない** —— 過去の実行では
+キーの合計 151 に対して 111、103 に対して 71 が記録された —— だから自分のキーを持たない件数は、
+単に集計に含まれるのではなく、復元できない。レポートの節を持つ検査がすべてここにキーを
+持つのはそのためだ。節を足すのと同じ編集でキーも足す。
 
-A check that was skipped because its precondition was absent (Check 10 with no `misc/`) reports `0`. Dropping the key instead makes the line unparseable against earlier runs.
+前提条件が無かったために飛ばした検査（`misc/` の無い Check 10）は `0` を報告する。代わりにキーを落とすと、その行は以前の実行と照らし合わせて解析できなくなる。
 
-`[TIMESTAMP]` is the output of `date -u +%Y-%m-%dT%H:%M:%SZ` — run it and paste the result verbatim, never hand-write it (why: schema doc, `log.md`).
+`[TIMESTAMP]` は `date -u +%Y-%m-%dT%H:%M:%SZ` の出力 —— 実行して結果をそのまま貼る。手で書かない（理由: schema doc の `log.md`）。
 
-`graph=` records whether Check 0 ran the script or the manual fallback. Counts from the
-two are not comparable, so a run-to-run delta means nothing without it.
+`graph=` は、Check 0 がスクリプトを走らせたか、手作業の代替手順を使ったかを記録する。両者の
+件数は比べられないので、これが無ければ実行間の差分は何の意味も持たない。
 
-Offer to fix issues automatically or let the user decide which to address.
+問題を自動で直すことを申し出るか、どれに対処するかをユーザーに決めてもらう。
 
 ---
 
-## Consolidate Mode (`--consolidate`)
+## consolidate モード（`--consolidate`）
 
-Only when the invocation carries `--consolidate`: this switches wiki-lint from report-only
-to act-and-report (the "dream cycle"). **Read `references/consolidate-mode.md` and follow
-it** — it defines the actions, the report page, and the dry-run gate.
+呼び出しに `--consolidate` が付いているときだけ: wiki-lint を報告のみから
+修復して報告（"dream cycle"）へ切り替える。**`references/consolidate-mode.md` を読み、それに
+従う** —— アクション、レポートのページ、dry-run の関門を定義している。
 
-Three rules from it that decide whether you may write at all:
+そこにあるルールのうち、そもそも書いてよいかを決める 3 つ:
 
-- **Dry-run first, always.** Print every planned action, then ask `"Apply these N changes? [yes / no / select]"`. No page is written before an explicit answer.
-- The only write that needs no confirmation is the single `log.md` append at the end.
-- Never merge pages (that is `wiki-dedup`'s job) and never write `lifecycle` — consolidate does not read page bodies, so it has no grounds to rank anything.
+- **必ず、まず dry-run。** 予定しているすべてのアクションを出力し、それから `"Apply these N changes? [yes / no / select]"` と尋ねる。明示的な答えの前には、どのページも書かない。
+- 確認の要らない書き込みは、最後の `log.md` への 1 回の追記だけだ。
+- ページを決してマージしない（それは `wiki-dedup` の仕事）。`lifecycle` も決して書かない —— consolidate はページ本文を読まないので、何かを段づけする根拠を持たない。

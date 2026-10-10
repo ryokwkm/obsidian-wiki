@@ -1,115 +1,115 @@
-# Ingesting URL Sources
+# URL ソースの取り込み
 
-Reference for the `wiki-ingest` skill when the source is a **web URL** rather than a local file.
-Triggered by `/ingest-url <url>`, "add this URL", "ingest this link", "save this page", or a pasted
-URL with "add this" / "save this to my wiki".
+ソースがローカルファイルではなく **Web URL** のときの、`wiki-ingest` skill の参照資料。
+`/ingest-url <url>`、"add this URL"、"ingest this link"、"save this page"、または "add this" / "save this to my wiki" を
+添えて貼られた URL で起動する。
 
-Where the page lands depends on whether you can detect a current project — if yes, it goes straight
-into that project's folder; if not, it goes to `misc/` and is promoted later based on connection
-affinity. Config resolution and the content trust boundary are the same as the skill's own
-`SKILL.md` — follow those; this file only covers the URL-specific mechanics.
+ページの置き場は、現在のプロジェクトを検出できるかで決まる —— できればそのプロジェクトのフォルダへ
+直接入れる。できなければ `misc/` へ入れ、後でつながりの affinity に基づいて昇格させる。
+設定の解決とコンテンツの信頼境界は skill 自身の
+`SKILL.md` と同じ —— そちらに従う。このファイルは URL 固有の仕組みだけを扱う。
 
 <!-- INDEX -->
-**Steps in order** — run them all; U5b and U6 are mutually exclusive by mode. This table is the
-heading index for this file (it is over 300 lines, so jump to the step you need rather than reading
-straight through).
+**順に行う手順** —— すべて実行する。U5b と U6 はモードによってどちらか一方だけ。この表が
+このファイルの見出し索引である（300 行を超えるので、頭から通して読まず、必要な手順へ
+飛ぶ）。
 
-| Step | What it does |
+| Step | 何をするか |
 |---|---|
-| U0 | Detect the current project (git remote → package metadata → dirname → none) |
-| U0.5 | Clean-extraction preflight (`defuddle` if available) |
-| U1 | Fetch the URL (stub page on failure, then jump to U7) |
-| U2 | Check for a duplicate already in the manifest / vault |
-| U3 | Pick the target path and generate the slug (U3a existing project / U3b new project / U3c `misc/`) |
-| U4 | Extract knowledge and track provenance |
-| U5 | Write the page (frontmatter differs per mode; `base_confidence` from the URL host) |
-| U5b | Affinity scoring — **misc mode only** |
-| U6 | Update the project overview — **project mode only** |
-| — | `## References` — how to record the source list on the page |
-| U7 | Update `.manifest.json`, `index.md`, `log.md`, `hot.md` |
-| — | `## Quality Checklist (URL sources)` — run before reporting done |
+| U0 | 現在のプロジェクトを検出する（git remote → パッケージのメタデータ → ディレクトリ名 → なし） |
+| U0.5 | きれいな抽出のための事前確認（使えるなら `defuddle`） |
+| U1 | URL を取得する（失敗したらスタブページを作り、U7 へ飛ぶ） |
+| U2 | manifest / vault に既にある重複を確かめる |
+| U3 | 置き場を選び、スラッグを作る（U3a 既存のプロジェクト / U3b 新しいプロジェクト / U3c `misc/`） |
+| U4 | 知識を抽出し、provenance を追う |
+| U5 | ページを書く（frontmatter はモードごとに違う。`base_confidence` は URL のホストから） |
+| U5b | affinity のスコア付け —— **misc モードのみ** |
+| U6 | プロジェクトの概要を更新する —— **プロジェクトモードのみ** |
+| — | `## References` —— ページに出典の一覧をどう記録するか |
+| U7 | `.manifest.json`・`index.md`・`log.md`・`hot.md` を更新する |
+| — | `## Quality Checklist (URL sources)` —— 完了を報告する前に実行する |
 
-## Step U0: Detect Current Project
+## Step U0: 現在のプロジェクトを検出する
 
-Before fetching anything, determine whether the user is working inside a specific project.
+何かを取得する前に、ユーザーが特定のプロジェクトの中で作業しているかを判定する。
 
-**Detection order (first match wins):**
+**検出の順序（最初に当たったものを採る）:**
 
-1. **Git remote name** — run `git remote get-url origin 2>/dev/null` from the current working directory. Strip the host, org, and `.git` suffix to get the repo name. Example: `https://github.com/acme/my-app.git` → `my-app`.
-2. **Package metadata** — if no git remote, check `package.json` (`name` field), `pyproject.toml` (`[project] name`), `Cargo.toml` (`[package] name`), `go.mod` (module path last segment), in that order.
-3. **Directory name** — if none of the above work, use the basename of the current working directory.
-4. **No project context** — if the current directory IS the obsidian-wiki repo itself, or if detection produces a name that matches the wiki vault directory, treat it as "no project context" and fall back to `misc/`.
+1. **git remote の名前** —— カレントディレクトリで `git remote get-url origin 2>/dev/null` を実行する。ホスト・org・`.git` の接尾辞を剥がしてリポジトリ名を得る。例: `https://github.com/acme/my-app.git` → `my-app`。
+2. **パッケージのメタデータ** —— git remote が無ければ、`package.json`（`name` フィールド）、`pyproject.toml`（`[project] name`）、`Cargo.toml`（`[package] name`）、`go.mod`（module パスの最後の要素）をこの順に確かめる。
+3. **ディレクトリ名** —— 上のどれも効かなければ、カレントディレクトリの basename を使う。
+4. **プロジェクトの文脈が無い** —— カレントディレクトリが obsidian-wiki リポジトリそのものであるとき、または検出した名前が wiki の vault のディレクトリと一致するときは、「プロジェクトの文脈が無い」として扱い、`misc/` へ落ちる。
 
-**Normalise the project name:** lowercase, replace spaces and underscores with `-`, strip leading dots.
+**プロジェクト名を正規化する:** 小文字にし、空白とアンダースコアを `-` に置き換え、先頭のドットを剥がす。
 
-Once you have a candidate name, check whether `$OBSIDIAN_VAULT_PATH/projects/<project-name>/` exists:
+候補の名前が得られたら、`$OBSIDIAN_VAULT_PATH/projects/<project-name>/` があるかを確かめる:
 
-| Situation | Action |
+| 状況 | 行うこと |
 |---|---|
-| Project detected + folder **exists** | Add page to existing project (Step U3a) |
-| Project detected + folder **does not exist** | Create project structure, then add page (Step U3b) |
-| No project context | Fall back to `misc/` (Step U3c) |
+| プロジェクトを検出 ＋ フォルダが**ある** | 既存のプロジェクトにページを足す（Step U3a） |
+| プロジェクトを検出 ＋ フォルダが**無い** | プロジェクトの構造を作ってからページを足す（Step U3b） |
+| プロジェクトの文脈が無い | `misc/` へ落ちる（Step U3c） |
 
-## Step U0.5: Clean Extraction Preflight
+## Step U0.5: きれいな抽出のための事前確認
 
-Before fetching, check whether the `defuddle` CLI is available:
+取得する前に、`defuddle` CLI が使えるかを確かめる:
 
 ```bash
 which defuddle
 ```
 
-- **If available:** Use `defuddle <url>` (via Bash) to retrieve a clean, stripped-down markdown version of the page. This removes ads, navbars, cookie banners, and related-content sidebars — reducing token usage by ~40-60% on typical articles. Use the `defuddle` output as your content source for Step U4 instead of the raw WebFetch result.
-- **If not available:** Fall back to `WebFetch` as normal. No action needed.
+- **使えるなら:** （Bash で）`defuddle <url>` を使い、ページから余計なものを剥がしたきれいな markdown 版を取る。広告・ナビバー・Cookie バナー・関連コンテンツのサイドバーが取り除かれ、典型的な記事でトークン消費が約 40〜60% 減る。Step U4 の中身の元には、素の WebFetch の結果ではなく `defuddle` の出力を使う。
+- **使えないなら:** 通常どおり `WebFetch` へ落ちる。することは無い。
 
-## Step U1: Fetch the URL
+## Step U1: URL を取得する
 
-Use `WebFetch` to retrieve the content at the provided URL (or skip if `defuddle` was used in Step U0.5).
+渡された URL の中身を `WebFetch` で取得する（Step U0.5 で `defuddle` を使ったなら飛ばす）。
 
-- If the page is paywalled, JS-rendered (blank body), or returns an error: create a **stub page** with the title (inferred from the URL), the URL, and `stub: true` in frontmatter. Append this to the body: `> [Stub] Page could not be fetched — enrich manually.` Then skip to Step U7.
-- If the page fetches successfully: proceed to Step U2.
+- ページがペイウォールの向こうにある・JS で描画される（本文が空）・エラーを返すときは、タイトル（URL から推測）・URL・frontmatter の `stub: true` を持つ**スタブページ**を作る。本文には `> [Stub] Page could not be fetched — enrich manually.` を足す。そのうえで Step U7 へ飛ぶ。
+- ページを取得できたら: Step U2 へ進む。
 
-## Step U2: Check for Duplicate
+## Step U2: 重複を確かめる
 
-Before creating a new page, check whether this URL was already ingested:
-- Grep `.manifest.json` for the URL string in any `source_url` field
-- If in project mode: grep `$OBSIDIAN_VAULT_PATH/projects/<project-name>/` for the URL string
-- If in misc mode: grep `$OBSIDIAN_VAULT_PATH/misc/` for the URL string
+新しいページを作る前に、この URL が既に取り込まれていないかを確かめる:
+- `.manifest.json` を grep し、いずれかの `source_url` フィールドにこの URL の文字列があるかを見る
+- プロジェクトモードなら: `$OBSIDIAN_VAULT_PATH/projects/<project-name>/` をこの URL の文字列で grep する
+- misc モードなら: `$OBSIDIAN_VAULT_PATH/misc/` をこの URL の文字列で grep する
 
-If found: report which page covers it and offer to re-ingest (update) if the user wants fresh content. Do not create a duplicate page.
+見つかったら: どのページがそれを扱っているかを報告し、ユーザーが新しい中身を望むなら取り込み直す（更新する）ことを申し出る。重複したページは作らない。
 
-## Step U3: Determine Target Path and Generate Slug
+## Step U3: 置き場を決めてスラッグを作る
 
-Derive a slug from the URL:
-1. Strip `https://`, `http://`, and trailing slashes
-2. Take hostname + first 2 meaningful path segments
-3. Lowercase everything; replace `/`, `.`, `?`, `=`, `&`, `#`, and spaces with `-`
-4. Collapse consecutive `-` into one; trim leading/trailing `-`
-5. Cap at 50 characters
-6. Prepend `web-`
+URL からスラッグを作る:
+1. `https://`・`http://`・末尾のスラッシュを剥がす
+2. ホスト名＋意味のあるパスの最初の 2 要素を取る
+3. すべて小文字にする。`/`・`.`・`?`・`=`・`&`・`#`・空白を `-` に置き換える
+4. 連続する `-` を 1 つにまとめ、先頭・末尾の `-` を取り除く
+5. 50 文字で切る
+6. 先頭に `web-` を付ける
 
-Examples:
+例:
 - `https://martinfowler.com/articles/microservices.html` → `web-martinfowler-com-articles-microservices`
 - `https://arxiv.org/abs/1706.03762` → `web-arxiv-org-abs-1706-03762`
 
-### Step U3a: Existing project
+### Step U3a: 既存のプロジェクト
 
-Target: `$OBSIDIAN_VAULT_PATH/projects/<project-name>/references/<slug>.md`
+置き場: `$OBSIDIAN_VAULT_PATH/projects/<project-name>/references/<slug>.md`
 
-Create `references/` inside the project folder if it doesn't exist yet. This is a reference page, not a synthesis or concept page — it documents an external source that's relevant to the project.
+プロジェクトのフォルダの中に `references/` がまだ無ければ作る。これは統合や概念のページではなく参照のページである —— プロジェクトに関係する外部のソースを記録する。
 
-### Step U3b: New project
+### Step U3b: 新しいプロジェクト
 
-First, create the project skeleton:
+まず、プロジェクトの骨組みを作る:
 
 ```
 projects/<project-name>/
-├── <project-name>.md          ← project overview (stub — fill in what you know)
+├── <project-name>.md          ← プロジェクトの概要（スタブ —— 分かっていることを書き込む）
 ├── concepts/
 ├── references/
 └── skills/
 ```
 
-The project overview stub (`<project-name>.md`) frontmatter:
+プロジェクトの概要のスタブ（`<project-name>.md`）の frontmatter:
 ```yaml
 ---
 title: "<Project Name>"
@@ -122,73 +122,73 @@ summary: "Project wiki for <project-name>. Created automatically via URL ingest.
 ---
 ```
 
-Then add the page to: `projects/<project-name>/references/<slug>.md`
+そのうえで、ページを `projects/<project-name>/references/<slug>.md` に足す。
 
-Report to the user: "Created new project `<project-name>` in the vault."
+ユーザーへ報告する: 「vault に新しいプロジェクト `<project-name>` を作成しました。」
 
-### Step U3c: No project context (misc fallback)
+### Step U3c: プロジェクトの文脈が無い（misc へ落ちる）
 
-Target: `$OBSIDIAN_VAULT_PATH/misc/<slug>.md`
+置き場: `$OBSIDIAN_VAULT_PATH/misc/<slug>.md`
 
-Create the `misc/` directory if it does not exist yet.
+`misc/` ディレクトリがまだ無ければ作る。
 
-## Step U4: Extract Knowledge
+## Step U4: 知識を抽出する
 
-From the fetched content, identify:
-- **Title** — the page's actual title (from `<title>` or `# heading`)
-- **Core concepts** — what is this page fundamentally about?
-- **Key claims** — the 3-7 most important assertions or findings
-- **Entities** mentioned — people, tools, libraries, organizations
-- **Related topics** — what fields or ideas does this connect to?
-- **Open questions** — what does the page raise but not answer?
+取得した中身から、次を見極める:
+- **タイトル** —— ページの実際のタイトル（`<title>` か `# heading` から）
+- **中核の概念** —— このページは根本的に何についてのものか？
+- **主要な主張** —— 最も重要な主張・知見を 3〜7 個
+- 言及されている**エンティティ** —— 人物・ツール・ライブラリ・組織
+- **関連する話題** —— どの分野・考えとつながるか？
+- **未解決の問い** —— ページが提起しているが答えていないことは何か？
 
-Track provenance per claim:
-- *Extracted* — page explicitly states this → `^[extracted]`
-- *Inferred* — you're generalizing or connecting to external context → `^[inferred]`
-- *Ambiguous* — page is vague or internally contradictory → `^[ambiguous]`
+主張ごとに provenance を追う:
+- *Extracted* —— ページがはっきり述べている → `^[extracted]`
+- *Inferred* —— 一般化している、または外部の文脈とつないでいる → `^[inferred]`
+- *Ambiguous* —— ページが曖昧、または内部で矛盾している → `^[ambiguous]`
 
-## Step U5: Write the Page
+## Step U5: ページを書く
 
-The frontmatter differs slightly between modes:
+frontmatter はモードによって少し違う:
 
-**Project mode** (`projects/<project-name>/references/<slug>.md`):
+**プロジェクトモード**（`projects/<project-name>/references/<slug>.md`）:
 ```yaml
 ---
 title: "<page title>"
 category: references
 project: "<project-name>"
-tags: [<2-4 domain tags — reuse tags already present in index.md rather than coining new ones>]
+tags: [<ドメインのタグ 2〜4 個 —— 新しく作らず、index.md に既にあるタグを使い回す>]
 sources:
   - "<URL>"
 source_url: "<URL>"
 created: "<ISO-8601 timestamp>"
 updated: "<ISO-8601 timestamp>"
-summary: "<1-2 sentence description of what this page is about, ≤200 chars>"
+summary: "<このページが何についてのものかを 1〜2 文で。200 字以内>"
 stub: false
 provenance:
   extracted: 0.X
   inferred: 0.X
   ambiguous: 0.X
 base_confidence: <computed — see below>
-lifecycle: draft                # floor — a URL ingest is `sourced` only with the source URL *and* its
-                                # retrieval date recorded; otherwise it stays here
+lifecycle: draft                # 下限 —— URL の取り込みが `sourced` になるのは、ソースの URL *と*
+                                # 取得日の両方を記録したときだけ。そうでなければここに留まる
                                 # (~/.claude/doc/doc_wiki_lifecycle_rubric.md)
 lifecycle_changed: "<ISO date today>"
 ---
 ```
 
-**Misc mode** (`misc/<slug>.md`):
+**misc モード**（`misc/<slug>.md`）:
 ```yaml
 ---
 title: "<page title>"
 category: misc
-tags: [<2-4 domain tags — reuse tags already present in index.md rather than coining new ones>]
+tags: [<ドメインのタグ 2〜4 個 —— 新しく作らず、index.md に既にあるタグを使い回す>]
 sources:
   - "<URL>"
 source_url: "<URL>"
 created: "<ISO-8601 timestamp>"
 updated: "<ISO-8601 timestamp>"
-summary: "<1-2 sentence description of what this page is about, ≤200 chars>"
+summary: "<このページが何についてのものかを 1〜2 文で。200 字以内>"
 affinity: {}
 promotion_status: misc
 stub: false
@@ -197,67 +197,67 @@ provenance:
   inferred: 0.X
   ambiguous: 0.X
 base_confidence: <computed — see below>
-lifecycle: draft                # same rule as the project-mode frontmatter above
+lifecycle: draft                # 上のプロジェクトモードの frontmatter と同じ規則
 lifecycle_changed: "<ISO date today>"
 ---
 ```
 
-**Computing `base_confidence` for a URL source:**
+**URL ソースの `base_confidence` を計算する:**
 
-Classify the URL's quality bucket using the host:
-- `arxiv.org`, `doi.org`, conference sites → `paper` (1.0)
-- `*.gov`, official vendor docs (e.g. `docs.python.org`, `developer.mozilla.org`) → `official` (0.9)
-- Well-maintained third-party docs (e.g. `docs.docker.com`) → `documentation` (0.85)
-- GitHub READMEs (`github.com`) → `repository` (0.75)
-- Personal blogs, Medium, Substack, dev.to → `blog` (0.55)
-- Stack Overflow, Hacker News, Reddit → `forum` (0.4)
-- Anything else → `unknown` (0.4)
+ホストから URL の品質のバケットを分類する:
+- `arxiv.org`、`doi.org`、学会のサイト → `paper`（1.0）
+- `*.gov`、ベンダーの公式 doc（例: `docs.python.org`、`developer.mozilla.org`）→ `official`（0.9）
+- よく保守されたサードパーティの doc（例: `docs.docker.com`）→ `documentation`（0.85）
+- GitHub の README（`github.com`）→ `repository`（0.75）
+- 個人ブログ・Medium・Substack・dev.to → `blog`（0.55）
+- Stack Overflow・Hacker News・Reddit → `forum`（0.4）
+- それ以外 → `unknown`（0.4）
 
-With 1 distinct source: `base_confidence = round(0.17 + 0.5 × quality_score, 2)`
+出典が 1 つのとき: `base_confidence = round(0.17 + 0.5 × quality_score, 2)`
 
-Examples: `paper` → 0.67, `official` → 0.62, `documentation` → 0.60, `repository` → 0.55, `blog` → 0.45, `forum/unknown` → 0.37.
+例: `paper` → 0.67、`official` → 0.62、`documentation` → 0.60、`repository` → 0.55、`blog` → 0.45、`forum/unknown` → 0.37。
 
-Then write the body (same for both modes):
+そのうえで本文を書く（両モードで同じ）:
 
-- `## Overview` — 2–4 sentence summary of what the page covers
-- `## Key Points` — bulleted list of main claims/findings, with provenance markers
-- `## Concepts` — wikilinks to related concept pages (`[[concepts/...]]`); create minimal stubs for important ones that don't exist yet
-- `## Entities` — wikilinks to entity pages (`[[entities/...]]`) for people, tools, orgs mentioned
-- `## Open Questions` — questions the source raises (omit section if none)
-- `## Related` — wikilinks to any existing wiki pages this connects to; in project mode, always include a link back to `[[projects/<project-name>/<project-name>]]`
+- `## Overview` —— ページが扱う内容の 2〜4 文の要約
+- `## Key Points` —— 主な主張・知見の箇条書き。provenance マーカーを付ける
+- `## Concepts` —— 関連する概念ページへの wikilink（`[[concepts/...]]`）。まだ無い重要な概念には最小限のスタブを作る
+- `## Entities` —— 言及された人物・ツール・組織のエンティティページへの wikilink（`[[entities/...]]`）
+- `## Open Questions` —— ソースが提起する問い（無ければ節ごと省く）
+- `## Related` —— これとつながる既存の wiki ページへの wikilink。プロジェクトモードでは、`[[projects/<project-name>/<project-name>]]` へ戻るリンクを必ず含める
 
-Apply `visibility/internal` or `visibility/pii` tags if the content warrants them. When in doubt, omit.
+中身がそれに値するなら `visibility/internal` か `visibility/pii` のタグを付ける。迷ったら付けない。
 
-**Minimum wikilinks:** every page must link to at least 2 existing pages. Search `index.md` before writing. If fewer than 2 related pages exist, create minimal stub pages for the most important concepts mentioned.
+**wikilink の最低数:** どのページも、既存のページへ少なくとも 2 本リンクしなければならない。書く前に `index.md` を検索する。関連するページが 2 つ未満しか無ければ、言及された概念のうち最も重要なものについて最小限のスタブページを作る。
 
-## Step U5b: Affinity scoring (misc mode only)
+## Step U5b: affinity のスコア付け（misc モードのみ）
 
-Skip this step entirely if in project mode.
+プロジェクトモードなら、この手順を丸ごと飛ばす。
 
-After writing the page, scan every `[[wikilink]]` you placed. For each linked page:
-1. Check if it lives under `projects/<project-name>/`
-2. Check if it has a `project:` frontmatter field
-3. If either is true, increment that project's affinity score
+ページを書いたら、置いた `[[wikilink]]` をすべて走査する。リンク先のページごとに:
+1. `projects/<project-name>/` の下にあるかを確かめる
+2. `project:` の frontmatter フィールドを持つかを確かめる
+3. どちらかが真なら、そのプロジェクトの affinity スコアを 1 増やす
 
-Also: scan the page body for exact mentions of project names listed in `index.md`. Each unlinked mention adds +1 to that project's score.
+加えて: ページ本文を走査し、`index.md` に載っているプロジェクト名がそのまま言及されていないかを見る。リンクになっていない言及 1 つごとに、そのプロジェクトのスコアに +1 する。
 
-Write the result to the `affinity` frontmatter block. Leave `affinity: {}` if no project connections found.
+結果を frontmatter の `affinity` ブロックへ書く。プロジェクトとのつながりが見つからなければ `affinity: {}` のままにする。
 
-If any project's score ≥ 3, surface it:
+いずれかのプロジェクトのスコアが 3 以上なら、それを示す:
 
-> ⚡ Strong affinity detected: this page has **3+ connections** to `<project-name>`. Consider promoting
-> this page to `projects/<project-name>/references/` — move the file, set `project: <project-name>` and
-> `promotion_status: <project-name>` in its frontmatter, add it to the project overview's `## References`
-> section, and fix its `index.md` entry.
+> ⚡ 強い affinity を検出しました: このページは `<project-name>` と **3 つ以上のつながり**を持っています。このページを
+> `projects/<project-name>/references/` へ昇格させることを検討してください —— ファイルを移し、frontmatter に `project: <project-name>` と
+> `promotion_status: <project-name>` を設定し、プロジェクトの概要の `## References`
+> 節に足し、`index.md` のエントリを直します。
 
-Report it, but do not promote on your own — the move rewrites another project's overview, so leave the
-decision to the user.
+報告はするが、自分の判断で昇格させない —— 移動は別のプロジェクトの概要を書き換えるので、
+判断はユーザーに任せる。
 
-## Step U6: Update Project Overview (project mode only)
+## Step U6: プロジェクトの概要を更新する（プロジェクトモードのみ）
 
-Skip this step if in misc mode.
+misc モードなら、この手順を飛ばす。
 
-Read the project overview at `projects/<project-name>/<project-name>.md`. If the overview is a stub or doesn't mention this reference yet, add the new page to a `## References` section:
+`projects/<project-name>/<project-name>.md` にあるプロジェクトの概要を読む。概要がスタブであるか、まだこの参照に触れていなければ、新しいページを `## References` 節に足す:
 
 ```markdown
 ## References
@@ -265,11 +265,11 @@ Read the project overview at `projects/<project-name>/<project-name>.md`. If the
 - [[projects/<project-name>/references/<slug>]] — <one-line summary>
 ```
 
-If a `## References` section already exists, append to it. Update the `updated` timestamp in frontmatter.
+`## References` 節が既にあれば、そこに追記する。frontmatter の `updated` タイムスタンプを更新する。
 
-## Step U7: Update Manifest and Special Files
+## Step U7: manifest と特殊ファイルを更新する
 
-**`.manifest.json`** — add or update the entry:
+**`.manifest.json`** —— エントリを追加または更新する:
 
 ```json
 {
@@ -284,38 +284,38 @@ If a `## References` section already exists, append to it. Update the `updated` 
 }
 ```
 
-Update `stats.total_sources_ingested` and `stats.total_pages`.
+`stats.total_sources_ingested` と `stats.total_pages` を更新する。
 
-**`index.md`** — add the new page under the appropriate section:
-- Project mode: under `## Projects > <project-name>`
-- Misc mode: under `## Misc` (create the section at the bottom if it doesn't exist)
+**`index.md`** —— 新しいページを適切な節の下に足す:
+- プロジェクトモード: `## Projects > <project-name>` の下
+- misc モード: `## Misc` の下（その節が無ければ末尾に作る）
 
-**`log.md`** — append:
+**`log.md`** —— 追記する:
 
-Project mode:
+プロジェクトモード:
 ```
 - [TIMESTAMP] INGEST_URL url="<url>" page="projects/<project-name>/references/<slug>.md" project="<project-name>" mode=project
 ```
 
-Misc mode:
+misc モード:
 ```
 - [TIMESTAMP] INGEST_URL url="<url>" page="misc/<slug>.md" affinity={} promotion_status=misc mode=misc
 ```
 
-`[TIMESTAMP]` is the output of `date -u +%Y-%m-%dT%H:%M:%SZ` — run it and paste the result verbatim, never hand-write it (why: schema doc, `log.md`).
+`[TIMESTAMP]` は `date -u +%Y-%m-%dT%H:%M:%SZ` の出力 —— 実行して結果をそのまま貼る。手で書かない（理由: schema doc の `log.md`）。
 
-**`hot.md`** — `Edit` in one line under **Recent Activity** for what was just ingested, newest first, last 3 operations only; insert it at the top with one `Edit` and, if the section is already full, delete the oldest line with a **separate** `Edit`. **Change it only with `Edit`, one line at a time — never `Write` the file back** (why: schema doc, Special Files). **Do not write the concept itself here** — it belongs in the page you just wrote. Update the `updated` timestamp with a separate `Edit`.
+**`hot.md`** —— いま取り込んだものについて **Recent Activity** の下へ 1 行を `Edit` で入れる。新しい順で、直近 3 件の操作だけ。1 回の `Edit` で先頭に入れ、節が既に埋まっていれば、最も古い行を**別の** `Edit` で消す。**変更は `Edit` だけで 1 行ずつ行い、ファイルを `Write` で書き戻さない**（理由: schema doc の Special Files）。**概念そのものはここに書かない** —— それはいま書いたページに置く。`updated` タイムスタンプは別の `Edit` で更新する。
 
 ## Quality Checklist (URL sources)
 
-- [ ] Target path determined correctly based on project detection
-- [ ] Page written with correct frontmatter for the mode (project vs. misc)
-- [ ] `source_url` in frontmatter matches the ingested URL
-- [ ] At least 2 wikilinks to existing pages
-- [ ] `summary:` field is present and ≤200 chars
-- [ ] Provenance markers applied; `provenance:` frontmatter block present
-- [ ] In project mode: project overview updated with link to new reference
-- [ ] In misc mode: `affinity` and `promotion_status` fields present
-- [ ] `.manifest.json`, `index.md`, and `log.md` updated
-- [ ] Stub pages reported to user if fetch failed
-- [ ] `hot.md` changed with `Edit`, never `Write`, with each span kept to the lines that changed
+- [ ] プロジェクトの検出に基づいて置き場を正しく決めた
+- [ ] モード（プロジェクト対 misc）に合った正しい frontmatter でページを書いた
+- [ ] frontmatter の `source_url` が取り込んだ URL と一致する
+- [ ] 既存のページへの wikilink が 2 本以上ある
+- [ ] `summary:` フィールドがあり、200 字以内
+- [ ] provenance マーカーを付けた。`provenance:` の frontmatter ブロックがある
+- [ ] プロジェクトモードでは: プロジェクトの概要を更新し、新しい参照へのリンクを足した
+- [ ] misc モードでは: `affinity` と `promotion_status` のフィールドがある
+- [ ] `.manifest.json`・`index.md`・`log.md` を更新した
+- [ ] 取得に失敗したなら、スタブページをユーザーに報告した
+- [ ] `hot.md` を `Write` ではなく `Edit` で変え、各範囲を変わった行に絞った

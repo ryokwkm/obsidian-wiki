@@ -1,56 +1,56 @@
-# Ingest Prompt Templates
+# 取り込みのプロンプト雛形
 
-These are the mental frameworks to use when distilling a source into wiki pages.
+ソースを wiki ページへ蒸留するときに使う、考え方の枠組み。
 
-## Knowledge Extraction Frame
+## 知識抽出のフレーム
 
-When reading a source document, ask yourself:
+ソースの文書を読むとき、自分に問う:
 
-1. **What are the 3-5 most important ideas in this document?**
-   These become concepts pages or updates to existing concept pages.
+1. **この文書で最も重要な考えを 3〜5 個挙げると何か？**
+   これらが概念ページになるか、既存の概念ページの更新になる。
 
-2. **Who or what is mentioned that deserves its own page?**
-   People, tools, organizations, projects → entity pages.
+2. **自分のページを持つに値する人・物として、何が言及されているか？**
+   人物・ツール・組織・プロジェクト → エンティティのページ。
 
-3. **What does this document teach you how to do?**
-   Procedures, workflows, techniques → skills pages.
+3. **この文書は何のやり方を教えてくれるか？**
+   手順・ワークフロー・技法 → skills のページ。
 
-4. **What claims does this document make?**
-   Each claim needs a source attribution. If it contradicts an existing wiki claim, note the contradiction.
+4. **この文書はどんな主張をしているか？**
+   主張ごとに出典の帰属が要る。wiki の既存の主張と矛盾するなら、その矛盾を書き留める。
 
-5. **How does this connect to what the wiki already knows?**
-   This is the most important question. The value of the wiki compounds through connections.
+5. **これは wiki が既に知っていることとどうつながるか？**
+   これが最も重要な問い。wiki の価値はつながりを通じて複利で増える。
 
-## Paper Extraction Frame
+## 論文抽出のフレーム
 
-For academic papers (ML/AI/LLM/VLM and similar), the generic frame above misses what makes a paper legible. Add these questions:
+学術論文（ML/AI/LLM/VLM など）では、上の汎用フレームは論文を読める形にするものを取りこぼす。次の問いを足す:
 
-1. **What problem does it solve, and what's new?** The one-sentence thesis + the single most important result.
-2. **What is the method?** Which figure shows the architecture/pipeline? Sketch it as a Mermaid flowchart — capture the data flow, not just the component names.
-3. **What are the core equations?** The 1–3 that define the mechanism — keep them as math (`$$…$$`), not prose.
-4. **What's the experimental setup and the headline numbers?** Datasets, baselines, and the metric table the paper is judged on.
-5. **What are the ablations and limitations?** What did they vary, and what does the method *not* do?
+1. **どんな問題を解き、何が新しいか？** 1 文の主張（thesis）＋最も重要な結果 1 つ。
+2. **手法は何か？** どの図がアーキテクチャ・パイプラインを示しているか？ Mermaid のフローチャートで描く —— コンポーネントの名前だけでなく、データの流れを捉える。
+3. **中核の数式は何か？** 仕組みを定義する 1〜3 本 —— 散文にせず数式（`$$…$$`）のまま残す。
+4. **実験の設定と、見出しになる数字は何か？** データセット・ベースライン、そして論文の評価の拠り所になる指標の表。
+5. **アブレーションと限界は何か？** 何を変えて試したか、そして手法が*しない*ことは何か？
 
-These map onto the Paper Deep-Dive Template in `references/paper-template.md`. The goal is a page a reader could study instead of the PDF — figures, equations, and results included.
+これらは `references/paper-template.md` の論文深掘りテンプレート（Paper Deep-Dive Template）の各節に対応する。目標は、読み手が PDF の代わりに読んで学べるページ —— 図・数式・結果を含めて。
 
-## Synthesis Frame
+## 統合のフレーム
 
-When a new source covers ground that existing pages already cover:
+新しいソースが、既存のページが既に扱っている範囲を扱うとき:
 
-- Don't duplicate — synthesize
-- If the new source agrees with existing content, strengthen the claims with additional attribution
-- If it disagrees, create an "Open Questions" or "Debate" section noting both positions
-- If it adds nuance, weave it into the existing narrative
+- 重複させない —— 統合する
+- 新しいソースが既存の内容と一致するなら、出典の帰属を足して主張を強める
+- 食い違うなら、"Open Questions" か "Debate" の節を作り、両方の立場を書き留める
+- ニュアンスを足すなら、既存の叙述へ織り込む
 
-## Cross-Reference Discovery
+## 相互参照の発見
 
-After extracting knowledge, look for these connection patterns. **These are lenses for spotting
-links, not `type:` values** — when recording a typed edge, use the Typed Relationships enum in
-`~/.claude/doc/doc_wiki_schema.md`:
+知識を抽出したら、次のつながりの型を探す。**これらはリンクを見つけるためのレンズであって、
+`type:` の値ではない** —— 型付きの辺を記録するときは、`~/.claude/doc/doc_wiki_schema.md` の
+Typed Relationships の列挙値を使う:
 
-- **Is-a**: "Transformers are a type of neural network" → link from transformer page to neural-network page
-- **Uses**: "RLHF uses reward models" → link from RLHF to reward-models
-- **Contrasts-with**: "CNNs vs. Transformers for vision" → mutual links
-- **Part-of**: "Attention is a component of transformers" → link from attention to transformers
-- **Created-by**: "Transformers were introduced by Vaswani et al." → link to entity page
-- **Applied-in**: "Transformers are used in GPT" → link from transformers to GPT
+- **Is-a**: 「Transformer はニューラルネットワークの一種」→ transformer のページから neural-network のページへリンク
+- **Uses**: 「RLHF は報酬モデルを使う」→ RLHF から reward-models へリンク
+- **Contrasts-with**: 「画像認識における CNN 対 Transformer」→ 相互にリンク
+- **Part-of**: 「Attention は Transformer の構成要素」→ attention から transformers へリンク
+- **Created-by**: 「Transformer は Vaswani らが提案した」→ エンティティのページへリンク
+- **Applied-in**: 「Transformer は GPT で使われている」→ transformers から GPT へリンク

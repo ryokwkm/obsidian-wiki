@@ -3,98 +3,98 @@ name: wiki-dedup
 description: Obsidian wiki 内で同じ概念が別名で複数ページになっている衝突（"RSC" と "React Server Components" など）を検出してマージする。「重複ページを探して」「ページをマージして」「同じ内容のページが 2 つある」や英語の "dedup my wiki" / "merge duplicates" と言われたときに使う。ページ単位の破壊的なマージなので確認を挟む。構造チェックだけなら wiki-lint。
 ---
 
-# Wiki Dedup — Identity Resolution and Page-Level Deduplication
+# Wiki Dedup — 同一性の解決とページ単位の重複排除
 
-You are finding and merging wiki pages that cover the same concept under different names. This is a write-heavy, potentially destructive skill — page merges cannot be automatically undone. Work carefully and confirm before acting in merge mode.
+同じ概念を別の名前で扱っている wiki ページを見つけてマージする。書き込みが多く、破壊的になりうる skill だ —— ページのマージは自動では元に戻せない。慎重に作業し、マージモードでは実行する前に確認する。
 
-**Use the cheapest retrieval primitive that can answer the question.** The script does the whole-vault pass; you open full page bodies only for the candidate pairs it ranks, and only far enough down the ranking to stop finding related pairs.
+**問いに答えられる最も安い検索手段（retrieval primitive）を使う。** vault 全体の走査はスクリプトが行う。ページ本文を丸ごと開くのは、スクリプトが順位を付けた候補の対だけで、それもランキングを下って関連する対が見つからなくなるところまでに限る。
 
-## What This Skill Measures — and Why It Is Body Text, Not Titles
+## この skill が測るもの —— タイトルではなく本文である理由
 
-Candidate detection is a **script** (`scripts/candidates.py`), not something you compute by hand. It ranks page pairs by how much of their **body text** overlaps. Read `scripts/candidates.py`'s module docstring before changing anything about scoring — it carries the measurements the design rests on.
+候補の検出は**スクリプト**（`scripts/candidates.py`）が行うもので、手で計算するものではない。スクリプトはページの対を、**本文**がどれだけ重なっているかで順位付けする。採点について何かを変える前に `scripts/candidates.py` のモジュール docstring を読む —— 設計の拠り所になっている実測がそこに書いてある。
 
-Three measured facts decide how you read a run:
+実行結果の読み方は、実測した 3 つの事実で決まる:
 
-- **Title similarity does not find duplicates in a Japanese vault.** The pairs it ranks highest are *deliberately* parallel pages — two sites, two audiences, same spec shape — while pages that genuinely overlap have unlike titles. The spelling-variant failure mode this score was built for (`RSC` / `React Server Components`) does not occur when a consistent writer names things.
-- **Scores are only ranks within one vault.** The same formula produced top-pair scores from 0.75 down to 0.34 across three vaults — no fixed threshold can serve them all, which is why the script returns a ranked list and never a pass/fail count.
-- **Most overlap is intentional.** Layered pairs (`entities/` summary ↔ `references/` detail), source archives (`_source_docs/`), and long-form reports (`reports/`) all overlap heavily by design. The script drops the ignored paths and sets aside pairs already joined by a `relationships:` edge; what reaches you still contains intentional pairs, and separating them is your job in Step 3.
+- **タイトルの類似では、日本語の vault の重複は見つからない。** タイトルの類似が最上位に並べる対は、*意図的に*並べて置いたページ —— 2 つのサイト、2 つの読み手、同じ形の仕様 —— で、本当に重なっているページどうしはタイトルが似ていない。このスコアが対処するために作られた表記ゆれという失敗パターン（`RSC` / `React Server Components`）は、一貫した書き手が名前を付けている限り起きない。
+- **スコアは 1 つの vault の中での順位でしかない。** 同じ式でも、3 つの vault で最上位の対のスコアは 0.75 から 0.34 まで割れた —— どんな固定閾値も全部には通用しない。だからスクリプトはランキングを返し、合否の件数は決して返さない。
+- **重なりの大半は意図的なものだ。** 層になった対（`entities/` の要約 ↔ `references/` の詳細）、ソースの保管庫（`_source_docs/`）、長文のレポート（`reports/`）は、どれも設計上大きく重なる。スクリプトは除外対象のパスを落とし、`relationships:` の辺で既に結ばれている対を脇へ除けるが、手元に届くものにはまだ意図的な対が含まれる。それを見分けるのが Step 3 での仕事だ。
 
-**A short candidate list is not a clean bill of health, and a long one is not a problem.** Report ranks, not verdicts about vault health.
+**候補の一覧が短くても健全の証明にはならず、長くても問題ではない。** 報告するのは順位であって、vault の健全性についての判定ではない。
 
-## Before You Start
+## 着手前に
 
-1. **Resolve config** — use `OBSIDIAN_VAULT_PATH` if it is already exported (shell rc / direnv / parent process). Otherwise walk up from CWD to `$HOME` for a `.env` containing `OBSIDIAN_VAULT_PATH=` and take the first match. If neither exists, stop and tell the user to set it in `.claude/settings.json` (`env`), shell rc, or direnv — never hard-code a path or guess a vault. Read `OBSIDIAN_LINK_FORMAT` the same way (default `wikilink`).
-2. Check for a recent dedup run — `grep '^- \[' "$OBSIDIAN_VAULT_PATH/log.md" | grep DEDUP | tail -5`. If one just happened, note what was already merged. **Never read `log.md` whole**: it is append-only and unbounded (100 kB+ ≒ 25k tokens on an active vault).
+1. **設定を解決する** — `OBSIDIAN_VAULT_PATH` が既に export されていればそれを使う（shell rc / direnv / 親プロセス）。無ければ CWD から `$HOME` まで遡って `OBSIDIAN_VAULT_PATH=` を含む `.env` を探し、最初に見つかったものを採る。どちらも無ければ止まり、`.claude/settings.json`（`env`）・shell rc・direnv のどれかで設定するようユーザーに伝える —— パスを決め打ちしたり vault を推測したりしない。`OBSIDIAN_LINK_FORMAT` も同じ方法で読む（既定は `wikilink`）。
+2. 最近 dedup を走らせたかを確かめる —— `grep '^- \[' "$OBSIDIAN_VAULT_PATH/log.md" | grep DEDUP | tail -5`。直前に走っていたなら、何が既にマージされたかを控えておく。**`log.md` を決して丸ごと読まない**: 追記専用で上限が無い（活発な vault では 100 kB 超 ≒ 25k トークン）。
 
-## Modes
+## モード
 
-| Mode | Flag | Behavior |
+| モード | フラグ | 挙動 |
 |---|---|---|
-| **Audit** | *(default)* | Report candidates only — no writes |
-| **Merge** | `--merge` | Show each confirmed pair, ask for confirmation before merging |
+| **監査（Audit）** | *（既定）* | 候補を報告するだけ —— 書き込まない |
+| **マージ（Merge）** | `--merge` | 確定した対を 1 つずつ見せ、マージする前に確認を求める |
 
-If the user doesn't specify, run in **Audit** mode and present findings before asking whether to proceed.
+ユーザーが指定しなければ**監査**モードで走らせ、先へ進むかを尋ねる前に見つけたものを示す。
 
-There is no auto-merge mode: the ranking has no absolute scale to threshold against (see the section above), a merge cannot be undone automatically, and confirming each pair costs one line of output. **If the user asks for `--auto`, say it does not exist and why, then run `--merge`.**
+自動マージのモードは無い: ランキングには閾値を当てる絶対的な尺度が無く（上の節を参照）、マージは自動では元に戻せず、対ごとの確認は出力 1 行で済む。**ユーザーが `--auto` を求めたら、それは存在しないことと理由を伝え、そのうえで `--merge` を走らせる。**
 
-## Step 1: Run the Candidate Script
+## Step 1: 候補スクリプトを走らせる
 
 ```bash
 python3 ~/.claude/skills/wiki-dedup/scripts/candidates.py "$OBSIDIAN_VAULT_PATH" --top 20
 ```
 
-It reads every page's frontmatter and body, ranks all pairs, and prints two lists plus the pages it could not compare. `--json` returns the same structure for programmatic use. Standard library only; it writes nothing.
+すべてのページの frontmatter と本文を読み、すべての対に順位を付け、2 つの一覧と、比較できなかったページを出力する。`--json` を付けると、プログラムから使えるよう同じ構造を返す。標準ライブラリだけで動き、何も書き込まない。
 
-**What it excludes, and why you must not re-add it by hand:**
+**何を除外するか、そしてなぜそれを手で戻してはいけないか:**
 
-- Directories starting with `_` (`_raw/`, `_archives/`, `_source_docs/`, …) and everything matched by the vault's **`.wikilintignore`** — the same file `wiki-lint`'s `linkgraph.py` reads. One ignore list, two readers.
-- `index.md`, `log.md`, `hot.md`, `_insights.md`, `README.md`, and any page carrying `redirects_to:` (already-merged stubs).
-- Pages whose body is too short to compare — reported separately so they are visible rather than silently dropped.
+- `_` で始まるディレクトリ（`_raw/`、`_archives/`、`_source_docs/`、…）と、vault の **`.wikilintignore`** に一致するものすべて —— `wiki-lint` の `linkgraph.py` が読むのと同じファイル。除外リストは 1 つで、読み手が 2 つ。
+- `index.md`、`log.md`、`hot.md`、`_insights.md`、`README.md` と、`redirects_to:` を持つページすべて（マージ済みのスタブ）。
+- 本文が短すぎて比較できないページ —— 黙って落とさず見えるように、別に報告する。
 
-That exclusion is load-bearing, not tidiness: without it, long-form reports and ingest-source archives — originals a human deliberately kept — fill the top of the ranking (measured: 4 in 10 of the top pairs). Merging those destroys them.
+この除外は見た目の整理ではなく、仕組みを支えている: 除外が無いと、長文のレポートや取り込み元の保管庫 —— 人が意図的に残した原本 —— がランキングの上位を埋める（実測: 上位の対の 10 件中 4 件）。それらをマージすると原本が壊れる。
 
-If the vault needs a path excluded, add it to `.wikilintignore` with a comment saying why. Never add a skip list to this skill.
+vault で除外したいパスがあるなら、理由を書いたコメントを添えて `.wikilintignore` に足す。この skill に除外リストを決して足さない。
 
-## Step 2: Read the Ranking
+## Step 2: ランキングを読む
 
-The score is `body_overlap + bonuses`, where `body_overlap` is the share of the shorter page's character-trigram set that also appears in the longer one (code fences, inline code and link targets removed first). Bonuses are small and only break ties: a shared title/alias (+0.15), same `category` (+0.05), 2+ or 3+ shared tags (+0.05 / +0.10).
+スコアは `body_overlap + bonuses` で、`body_overlap` は短い方のページの文字 trigram 集合のうち、長い方のページにも現れるものの割合（先にコードフェンス・インラインコード・リンクの宛先を取り除く）。ボーナスは小さく、同点を崩すためだけにある: タイトル/エイリアスの一致（+0.15）、同じ `category`（+0.05）、共有するタグが 2 つ以上 / 3 つ以上（+0.05 / +0.10）。
 
-**How to read it:**
+**読み方:**
 
-- Work down the ranked list. There is no cut-off score — the list *is* the answer. Stop when the pairs stop looking related, and say in the report where you stopped.
-- **`alias-match` in the signals column is the strongest single hint.** Two pages claiming the same alias make every `[[alias]]` link in the vault ambiguous, so those pairs need a decision regardless of what you decide about their content.
-- **The second list — pairs already joined by a `relationships:` edge — is not a candidate list.** A typed edge is the writer recording that these two pages are deliberately distinct. Scan it only to check whether an edge has become wrong (the pages have since converged). Never merge from it without saying so explicitly.
-- A pair scoring high with no `relationships:` edge and no `alias-match` is usually **a missing link, not a duplicate** — see the `layered` verdict in Step 3.
+- ランキングを上から順に下っていく。打ち切りのスコアは無い —— 一覧*そのものが*答えだ。対が関連して見えなくなったら止まり、どこで止まったかを報告に書く。
+- **signals 列の `alias-match` は、単独では最も強い手がかりだ。** 同じエイリアスを名乗る 2 ページがあると vault 中の `[[alias]]` リンクがすべて曖昧になるので、そうした対は、内容についてどう判断するかに関係なく決着が要る。
+- **2 つ目の一覧 —— `relationships:` の辺で既に結ばれている対 —— は候補の一覧ではない。** 型付きの辺は、この 2 ページを意図的に分けていると書き手が記録したものだ。目を通すのは、辺が誤りになっていないか（その後にページが寄ってきていないか）を確かめるためだけにする。そう明言せずに、そこからマージすることは決してしない。
+- スコアが高いのに `relationships:` の辺も `alias-match` も無い対は、たいてい**重複ではなくリンクの欠落**だ —— Step 3 の `layered` の判定を参照。
 
-Take the top pairs into Step 3. On a vault over 500 pages, work in batches of 20 and report progress between batches.
+上位の対を Step 3 へ持っていく。500 ページを超える vault では 20 件ずつのバッチで作業し、バッチの合間に進捗を報告する。
 
-## Step 3: Semantic Verdict
+## Step 3: 意味による判定
 
-For each candidate pair (sorted by score descending):
+候補の対それぞれについて（スコアの降順で）:
 
-1. Read both pages in full (full page read — justified because candidate pool is small).
-2. Ask: are these pages covering the **same concept**, or are they distinct?
+1. 両ページを全文読む（ページの全文読み —— 候補が少ないので正当化される）。
+2. 問う: この 2 ページは**同じ概念**を扱っているのか、それとも別物か？
 
-Assign one of four verdicts:
+4 つの判定のどれかを付ける:
 
-| Verdict | Meaning | Action |
+| 判定 | 意味 | 対応 |
 |---|---|---|
-| `merge` | Same concept, same altitude — an accidental duplicate. | Step 5 |
-| `layered` | **Same subject, different altitude** — an `entities/` summary and its `references/` detail page, a concept page and the procedure that applies it. Deliberate, and merging it destroys the split. | Add the missing `relationships:` edge (below) |
-| `keep-separate` | Related but distinct — parallel pages for two domains, two versions, two audiences. | None |
-| `needs-review` | Substantial overlap *and* meaningful differences. | Flag for the user |
+| `merge` | 同じ概念で、同じ粒度 —— 偶然できた重複。 | Step 5 |
+| `layered` | **主題は同じで、粒度が違う** —— `entities/` の要約とその `references/` の詳細ページ、概念のページとそれを適用する手順。意図的なもので、マージすると分けた構成が壊れる。 | 欠けている `relationships:` の辺を足す（下記） |
+| `keep-separate` | 関連はあるが別物 —— 2 つの領域・2 つのバージョン・2 つの読み手に向けて並べたページ。 | なし |
+| `needs-review` | 重なりが大きく、*かつ*意味のある違いもある。 | ユーザーに要確認として示す |
 
-**`layered` is the most common verdict on a real vault, and it is the one a title-based score could never produce.** Measured: the top pairs were all `entities/` ↔ `references/` on the same subject. The difference between a flagged pair and a quiet one is not their content — it is that someone wrote the edge down for one of them.
+**`layered` は実際の vault で最も多い判定で、タイトルに基づくスコアでは決して出せない判定でもある。** 実測: 上位の対はすべて、同じ主題の `entities/` ↔ `references/` だった。候補に挙がる対と挙がらない対の違いは内容ではない —— 片方について誰かが辺を書き留めていたかどうかだ。
 
-So when you rule `layered`, **finish the job**: record the relationship as **one edge on one page — never both sides**. Either add `type: elaborates` on the **detail** page pointing at the summary page (the detail page is the elaboration — this is how every measured instance in the live vaults is written), or add `type: elaborated_by` on the **summary** page pointing at the detail page. For component→whole pairs, add `type: part_of` on the component page. The type table lives in `~/.claude/doc/doc_wiki_schema.md` (Typed Relationships) — consult it rather than improvising. Also note in the detail page's `summary:` which page it elaborates. That converts a recurring false positive into recorded structure — the next run sets the pair aside on its own. This is a small frontmatter edit, not a merge; it needs no confirmation in audit mode, but say in the report which edges you added.
+だから `layered` と判定したら、**最後までやり切る**: 関係を**1 ページに 1 本の辺として記録する —— 両側には決して書かない**。**詳細**ページに要約ページを指す `type: elaborates` を足す（詳細ページが詳述する側 —— 稼働中の vault で実測した例はすべてこの書き方）か、**要約**ページに詳細ページを指す `type: elaborated_by` を足すかのどちらかにする。部分→全体の対では、部分のページに `type: part_of` を足す。型の表は `~/.claude/doc/doc_wiki_schema.md`（Typed Relationships）にある —— その場で作らずにそれを引く。詳細ページの `summary:` にも、どのページを詳述しているかを書いておく。そうすれば繰り返し出る誤検出が、記録された構造に変わる —— 次の実行ではその対がひとりでに脇へ除けられる。これは frontmatter の小さな編集でマージではない。監査モードでも確認は要らないが、どの辺を足したかは報告に書く。
 
-Attach a short reason to each verdict (one sentence). This appears in the report and the log.
+判定ごとに短い理由（1 文）を添える。これは報告とログに載る。
 
-**Two pages sharing an alias always need a decision**, whatever the verdict. If they stay separate, remove the alias from one of them — an alias resolving to two pages makes every `[[alias]]` link ambiguous, and `wiki-lint`'s link graph reports it as such.
+判定が何であれ、**エイリアスを共有する 2 ページには必ず決着が要る**。分けたままにするなら、どちらか一方からそのエイリアスを外す —— 2 ページに解決されるエイリアスは `[[alias]]` リンクをすべて曖昧にし、`wiki-lint` のリンクグラフがそれを曖昧なものとして報告する。
 
-## Step 4: Audit Report
+## Step 4: 監査レポート
 
-Always produce this report, even in merge mode (so the user sees what will happen):
+マージモードでも必ずこのレポートを出す（何が起きるかをユーザーが見られるように）:
 
 ```markdown
 ## Wiki Dedup Report
@@ -103,9 +103,9 @@ Vault: <name> — N pages compared, M pairs ranked. Read down to rank K; below t
 
 | Rank | Score | Page A | Page B | Verdict | Reason |
 |---|---|---|---|---|---|
-| 1 | 0.748 | `entities/scrape-batch` | `references/scrape-and-update-batches` | layered | Same batch job; entities page summarises what the references page documents in full — added `elaborates` edge on the references page |
-| 4 | 0.470 | `prediction/prediction-improvement-design` | `prediction/prediction` | keep-separate | Hub page vs one design under it |
-| 9 | 0.400 | `entities/site-a-official` | `references/site-b-page-specs` | needs-review | Overlapping scrape specs, but different sites |
+| 1 | 0.748 | `entities/scrape-batch` | `references/scrape-and-update-batches` | layered | 同じバッチジョブ。entities のページは references のページが詳しく書く内容を要約している —— references のページに `elaborates` の辺を足した |
+| 4 | 0.470 | `prediction/prediction-improvement-design` | `prediction/prediction` | keep-separate | ハブページと、その配下の設計の 1 つ |
+| 9 | 0.400 | `entities/site-a-official` | `references/site-b-page-specs` | needs-review | スクレイピングの仕様が重なるが、サイトが違う |
 
 ### Summary
 - Pages compared: N (of P scanned; Q excluded, R too short)
@@ -114,45 +114,45 @@ Vault: <name> — N pages compared, M pairs ranked. Read down to rank K; below t
 - Alias collisions found: A
 ```
 
-**Report the rank you stopped at.** A reader cannot tell "I read 20 pairs and 3 mattered" from "3 pairs existed" unless you say so.
+**どの順位で止まったかを報告する。** そう書かなければ、読み手は「20 対を読んで 3 対が重要だった」と「3 対しか無かった」を区別できない。
 
-In **Audit mode**, write the Step 6 log entry with `mode=audit` **before stopping** — the SessionStart maintenance hook reads `DEDUP` from `log.md` to decide when to prompt again, so skipping the log makes it prompt every session forever. Then ask: "Run `--merge` to go through the `merge` pairs one at a time?"
+**監査モード**では、**止まる前に** Step 6 のログ行を `mode=audit` で書く —— SessionStart のメンテナンス hook は `log.md` の `DEDUP` を読んで次にいつ促すかを決めるので、ログを飛ばすと毎セッション、永遠に促し続ける。そのうえで尋ねる: 「`--merge` を走らせて、`merge` の対を 1 つずつ見ていきますか？」
 
-## Step 5: Merge
+## Step 5: マージ
 
-For each `merge` verdict pair (in merge mode only):
+判定が `merge` の対それぞれについて（マージモードのときだけ）:
 
-Show the pair and verdict, then ask: "Merge `[Page A]` into `[Page B]`? (yes/skip/review)". Skip on anything other than yes.
+対と判定を示してから尋ねる: 「`[Page A]` を `[Page B]` へマージしますか？ (yes/skip/review)」。yes 以外の返答ならスキップする。
 
-### 5a: Pick the canonical page
+### 5a: 残す側のページ（canonical）を選ぶ
 
-Apply these tiebreakers in order until one wins:
+次の決め手を、どちらかが勝つまで順に当てる:
 
-1. **More incoming wikilinks** — grep the vault for `[[node_id]]` references; higher count wins
-2. **Richer content** — longer page body (more lines) wins
-3. **More sources** — larger `sources:` list wins
-4. **Title length** — longer, more descriptive title wins (e.g. "React Server Components" beats "RSC")
-5. **Alphabetical** — earlier title wins
+1. **被リンクの wikilink が多い** —— vault を `[[node_id]]` の参照で grep し、数が多い方が勝つ
+2. **内容が豊富** —— ページ本文が長い（行数が多い）方が勝つ
+3. **出典が多い** —— `sources:` のリストが大きい方が勝つ
+4. **タイトルの長さ** —— 長く説明的なタイトルの方が勝つ（例: "React Server Components" は "RSC" に勝つ）
+5. **アルファベット順** —— タイトルが先に来る方が勝つ
 
-The canonical page is the **survivor**. The other page becomes the **secondary** (to be merged in, then replaced with a redirect stub).
+残す側のページが**生き残る側**だ。もう一方は**統合される側のページ（secondary）**になる（中身を統合したうえで、リダイレクトスタブに置き換える）。
 
-### 5b: Merge content into the canonical page
+### 5b: 内容を残す側のページへマージする
 
-Read both pages. Update the canonical page:
+両ページを読む。残す側のページを更新する:
 
-- **`aliases:`** — add secondary page's title and all its aliases (no duplicates)
-- **`tags:`** — merge both tag lists (deduplicate, cap at 5 domain tags + system tags)
-- **`sources:`** — merge both source lists (deduplicate)
-- **`relationships:`** — merge both relationship lists (deduplicate by target, prefer typed entries over untyped)
-- **`base_confidence`** — recompute over the **union of distinct `source_id`s**: `min(distinct_sources / 3, 1.0) × 0.5 + avg(per-source quality score) × 0.5`. Two copies of the same source share one `source_id`, so a merge does not automatically raise the count. The per-source quality buckets and the `source_id` rules are in `~/.claude/doc/doc_wiki_schema.md` (Confidence formula)
-- **`lifecycle`** — take the **lower rank of the two**. Merging a `draft` into a `tested` page means part of the surviving body is now unevidenced, so the page can no longer claim `tested`. Carry over `lifecycle_evidence` / `evidence_at` from whichever page supplied the surviving rank, and bump `lifecycle_changed`. **Never keep the canonical page's rank merely because it is the survivor** — that silently launders an unchecked claim into a checked page. If either page carries an **unranked** value, stop and ask: unranked pages should not be merged into a ranked page at all.
-  - The values, the ranks, which values are unranked, and the promotion rules live in exactly one place — **`~/.claude/doc/doc_wiki_lifecycle_rubric.md`**. Read it before writing any `lifecycle` value. **Do not restate the value list here**
-- **`updated`** — set to now
-- **`summary:`** — rewrite to cover the merged scope if the secondary page added new ground
-- **Body content** — merge unique sections and bullets from the secondary page. Do not blindly append — integrate the content. Avoid duplicating claims already present in the canonical page. Use `^[inferred]` markers where synthesis is needed.
-- **`provenance:`** — recompute after merging
+- **`aliases:`** —— 統合される側のページのタイトルと、そのエイリアスをすべて足す（重複させない）
+- **`tags:`** —— 両方のタグリストをマージする（重複を除き、ドメインタグは 5 つまで + システムタグ）
+- **`sources:`** —— 両方の出典リストをマージする（重複を除く）
+- **`relationships:`** —— 両方の関係リストをマージする（target で重複を除き、型の無いエントリより型付きのエントリを優先する）
+- **`base_confidence`** —— **異なる `source_id` の和集合**で計算し直す: `min(distinct_sources / 3, 1.0) × 0.5 + avg(per-source quality score) × 0.5`。同じソースの写し 2 つは 1 つの `source_id` を共有するので、マージしても数は自動では増えない。ソースごとの品質のバケットと `source_id` の規則は `~/.claude/doc/doc_wiki_schema.md`（Confidence formula）にある
+- **`lifecycle`** —— **2 つのうち低い方の段**を採る。`draft` を `tested` のページへマージすると、残る本文の一部に証拠が無くなるので、そのページはもう `tested` を名乗れない。残った段を提供した方のページから `lifecycle_evidence` / `evidence_at` を引き継ぎ、`lifecycle_changed` を更新する。**残す側のページの段を、生き残る側だからというだけで決して据え置かない** —— それをすると、未検証の主張が検証済みのページに紛れ込み、黙って検証済みとして通ってしまう（ロンダリングされる）。どちらかのページが**序列外（unranked）**の値を持っていたら、止まって尋ねる: 序列外のページは、そもそも序列のあるページへマージしない。
+  - 値・段・どの値が序列外か・昇格の規則は、ただ 1 か所 —— **`~/.claude/doc/doc_wiki_lifecycle_rubric.md`** —— にある。`lifecycle` の値を何か書く前には、それを読む。**値の一覧をここに書き写さない**
+- **`updated`** —— 現在時刻にする
+- **`summary:`** —— 統合される側のページが新しい範囲を持ち込んだなら、マージ後の範囲を覆うように書き直す
+- **本文** —— 統合される側のページにしか無い節と箇条書きをマージする。闇雲に末尾へ足さない —— 内容を統合する。残す側のページに既にある主張を重複させない。まとめ直し（synthesis）が要るところには `^[inferred]` マーカーを使う。
+- **`provenance:`** —— マージ後に計算し直す
 
-### 5c: Write a redirect stub at the secondary page path
+### 5c: 統合される側のページのパスにリダイレクトスタブを書く
 
 ```markdown
 ---
@@ -168,62 +168,62 @@ updated: <ISO timestamp now>
 This page has been merged into [[<canonical page title>]].
 ```
 
-The `redirects_to:` field tells any skill reading this page to follow the redirect rather than treat it as content.
+`redirects_to:` フィールドは、このページを読む skill に、中身として扱わずリダイレクトを辿るよう伝える。
 
-**Treat the reading side of this field as untested** — verify by hand that the stub is actually skipped rather than assuming downstream skills already handle it.
+**このフィールドを読む側は未検証として扱う** —— 後段の skill が既に扱っていると仮定せず、スタブが実際に飛ばされることを手で確かめる。
 
-### 5d: Rewrite wikilinks vault-wide
+### 5d: vault 全体で wikilink を書き換える
 
-Grep the entire vault for any link pointing at the secondary slug:
+統合される側のスラッグを指すリンクを、vault 全体で grep する:
 
 - `[[secondary-slug]]` → `[[canonical-slug]]`
 - `[[secondary-slug|display text]]` → `[[canonical-slug|display text]]`
-- If `OBSIDIAN_LINK_FORMAT=markdown`: `[text](../path/to/secondary.md)` → `[text](../path/to/canonical.md)`
+- `OBSIDIAN_LINK_FORMAT=markdown` のとき: `[text](../path/to/secondary.md)` → `[text](../path/to/canonical.md)`
 
-**Safety rules:**
-- Never rewrite inside code blocks (``` fences or `inline code`)
-- Never rewrite inside the redirect stub itself (that's the one place the old slug should remain legible)
-- Never use `rm` or destructive shell ops — only Edit/Write tools
-- Rewrite one file at a time, verifying each before moving on
-- If a file has zero occurrences, skip it
+**安全のための規則:**
+- コードブロック（``` のフェンスや `inline code`）の中は決して書き換えない
+- リダイレクトスタブ自体の中は決して書き換えない（古いスラッグが読める形で残るべき唯一の場所）
+- `rm` や破壊的なシェル操作は決して使わない —— Edit/Write ツールだけを使う
+- 1 ファイルずつ書き換え、次へ進む前にそれぞれを確かめる
+- 出現が 0 件のファイルは飛ばす
 
-### 5e: Update tracking files
+### 5e: 追跡ファイルを更新する
 
-**`index.md`** — Remove the secondary page's entry. Update the canonical page's entry with the merged summary. One entry is one line: the page's `summary:` field verbatim (≤200 chars). Never grow an entry past that — if the text is too long, fix the page's `summary:`, not the index entry (`wiki-lint` already flags summaries over 200 chars).
+**`index.md`** —— 統合される側のページのエントリを消す。残す側のページのエントリを、マージ後の summary で更新する。1 エントリは 1 行で、ページの `summary:` フィールドをそのまま写す（200 字以内）。エントリをそれより長くしない —— 文が長すぎるならページの `summary:` を直し、index のエントリはいじらない（200 字を超える summary は `wiki-lint` が既に指摘する）。
 
-**`.manifest.json`** — For the secondary page's source entries: add `"merged_into": "<canonical node_id>"` to each. For the canonical page: merge in the secondary's `pages_created` and `pages_updated` lists.
+**`.manifest.json`** —— 統合される側のページのソースのエントリ: それぞれに `"merged_into": "<canonical node_id>"` を足す。残す側のページ: 統合される側の `pages_created` と `pages_updated` のリストをマージする。
 
-**`hot.md`** — **Insert one line at the top of `## Recent Activity`** with a targeted `Edit`: "Merged N duplicate pairs; canonical pages updated." Recent Activity is newest-first and holds the last 3 operations only, so when it is already full, **delete the oldest line with a separate `Edit`** — doing both in one `Edit` means making the whole section the `old_string`. Bump the frontmatter `updated:` field in the same pass.
+**`hot.md`** —— 対象を絞った `Edit` で **`## Recent Activity` の先頭に 1 行を入れる**: 「重複 N 組をマージし、残す側のページを更新した。」 Recent Activity は新しい順で直近 3 件の操作だけを保つので、既に埋まっていれば**最も古い行を別の `Edit` で消す** —— 両方を 1 回の `Edit` でやると、節全体を `old_string` にすることになる。同じ回の中で frontmatter の `updated:` フィールドも更新する。
 
-⚠️ **Never write `hot.md` whole, and never make a whole section the `old_string`.** Other sessions edit it concurrently; any write wider than the line you are changing silently drops whatever they added between your read and your write. A line-level `Edit` fails loudly on a conflict instead, which is the outcome you want.
+⚠️ **`hot.md` を決して丸ごと書かず、節全体を `old_string` にも決してしない。** 他のセッションが並行して編集している。変える行より広い範囲を書くと、自分が読んでから書くまでの間に他のセッションが足したものが黙って消える。行単位の `Edit` なら、衝突したときに代わりにはっきりと失敗する —— それこそ望む結果だ。
 
-### 5f: Final check
+### 5f: 最終確認
 
-After all merges, grep the vault for any remaining `[[secondary-slug]]` references (in non-stub files). If any survive, report them — the rewrite step may have missed a non-standard link format.
+すべてのマージを終えたら、残っている `[[secondary-slug]]` の参照を vault 全体で grep する（スタブ以外のファイルで）。残っていれば報告する —— 書き換えの手順が標準外のリンク形式を取りこぼしたのかもしれない。
 
-## Step 6: Log
+## Step 6: ログ
 
-Append to `log.md`:
+`log.md` に追記する:
 ```
 - [TIMESTAMP] DEDUP mode=audit|merge pages_compared=N ranked_read=K merged=X layered=L kept_separate=Y needs_review=Z edges_added=E wikilinks_rewritten=W
 ```
 
-`[TIMESTAMP]` is the output of `date -u +%Y-%m-%dT%H:%M:%SZ` — run it and paste the result verbatim, never hand-write it (why: schema doc, `log.md`).
+`[TIMESTAMP]` は `date -u +%Y-%m-%dT%H:%M:%SZ` の出力 —— 実行して結果をそのまま貼る。手で書かない（理由: schema doc の `log.md`）。
 
-## Redirect Stub Handling
+## リダイレクトスタブの扱い
 
-Other skills should handle redirect stubs as follows:
+他の skill はリダイレクトスタブを次のように扱う:
 
-- **`wiki-query`** — if a search hits a redirect stub, follow `redirects_to:` and read the canonical page instead
-- **`wiki-lint`** — validate that every `redirects_to:` wikilink resolves to an existing, non-stub page (a redirect chain — stub pointing to stub — is an error)
-- **Any skill that adds links** — treat redirect stubs as non-targets; never add a new `[[wikilink]]` pointing at a stub page
+- **`wiki-query`** —— 検索がリダイレクトスタブに当たったら、`redirects_to:` を辿り、代わりに残す側のページを読む
+- **`wiki-lint`** —— すべての `redirects_to:` の wikilink が、実在するスタブでないページへ解決されることを検証する（リダイレクトの連鎖 —— スタブを指すスタブ —— はエラー）
+- **リンクを足す skill すべて** —— リダイレクトスタブをリンク先として扱わない。スタブのページを指す新しい `[[wikilink]]` を決して足さない
 
-## Tips
+## コツ
 
-- **Audit first, always.** Read the report before trusting any verdict, including your own.
-- **Check `needs-review` last.** These are the hard cases — don't batch them with obvious merges.
-- **The common outcome is `layered`, not `merge`.** Expect most of a run to end in edges added rather than pages merged. That is the skill working, not failing to find anything.
-- **Parallel pages are the top false positive.** Two domains, two audiences, two versions, two sites — these share vocabulary and structure by design, and they rank high on any text measure. Distinguish them by asking what changes between the pages: if it is the *subject*, they are separate; if it is only the *depth*, they are `layered`.
-- **A high score between a hub page and a page under it is expected.** A hub restates what it links to. Rule `keep-separate` unless the hub has grown a full copy of the other page's content.
-- **Merges leave the graph slightly inconsistent.** Redirect stubs remain, and no page should link to them. Step 5f's grep is what proves the link rewrite was complete — run it rather than assuming.
+- **必ず監査を先にする。** どの判定も —— 自分の判定も含めて —— 信じる前にレポートを読む。
+- **`needs-review` は最後に確かめる。** 難しいケースだ —— 明らかなマージとひとまとめにしない。
+- **よくある結果は `merge` ではなく `layered` だ。** 1 回の実行の大半は、ページのマージではなく辺の追加で終わると見込んでおく。それは skill が機能しているのであって、何も見つけられずに失敗しているのではない。
+- **並べて置いたページが誤検出の筆頭だ。** 2 つの領域、2 つの読み手、2 つのバージョン、2 つのサイト —— これらは設計上、語彙と構造を共有するので、どんなテキストの尺度でも上位に来る。ページ間で何が変わるかを問うて見分ける: 変わるのが*主題*なら別ページ、*深さ*だけなら `layered` だ。
+- **ハブページとその配下のページの間でスコアが高いのは想定どおりだ。** ハブはリンク先の内容を言い直すものだ。ハブがもう一方のページの内容を丸ごと写すまでに育っていない限り、`keep-separate` と判定する。
+- **マージの後はグラフが少し不整合になる。** リダイレクトスタブが残り、どのページからもそれへリンクさせない。リンクの書き換えが完了したことを証明するのは Step 5f の grep だ —— 仮定せずに走らせる。
 

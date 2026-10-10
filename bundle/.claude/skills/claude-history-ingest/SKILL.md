@@ -3,174 +3,174 @@ name: claude-history-ingest
 description: Claude Code の会話履歴（~/.claude/projects のセッションログ）を Obsidian wiki へ取り込み、過去のセッションから知見を抽出する。「Claude の履歴を処理して」「会話を wiki に追加して」「Claude と何を話したっけ」や英語の "process my Claude history" / "add my conversations to the wiki" と言われたとき、.claude フォルダ・セッションデータ・過去の会話ログに言及されたときに使う。
 ---
 
-# Claude History Ingest — Conversation Mining
+# Claude History Ingest — 会話から知識を掘り出す
 
-You are extracting knowledge from the user's past Claude Code conversations and distilling it into the Obsidian wiki. Conversations are rich but messy — your job is to find the signal and compile it.
+ユーザーの過去の Claude Code の会話から知識を抽出し、Obsidian wiki へ蒸留する。会話は情報が豊かだが雑然としている —— シグナルを見つけてまとめ上げるのがこの仕事だ。
 
-## Before You Start
+## 着手前に
 
-1. **Resolve config** — use `OBSIDIAN_VAULT_PATH` if it is already exported (shell rc / direnv / parent process). Otherwise walk up from CWD to `$HOME` for a `.env` containing `OBSIDIAN_VAULT_PATH=` and take the first match. If neither exists, stop and tell the user to set it in `.claude/settings.json` (`env`), shell rc, or direnv — never hard-code a path or guess a vault. Read `CLAUDE_HISTORY_PATH` the same way (defaults to `~/.claude`)
-2. Read `.manifest.json` at the vault root to check what's already been ingested
-3. Grep `index.md` at the vault root for the topics you extract to find existing pages; read it whole only if the greps come back empty
-4. **Project Scoping** — read `WIKI_SKIP_PROJECTS` from the environment: comma-separated substrings, unset or empty means skip nothing. Exclude any project directory whose name contains one of them from **every** step below (scan, delta, sampling, manifest writes). If the user names extra projects to skip this run, add them. Apply the exclusion **once, uniformly** — don't hand-write `grep -v` filters into individual commands, which drifts between the scan and manifest steps.
+1. **設定を解決する** — `OBSIDIAN_VAULT_PATH` が既に export されていればそれを使う（shell rc / direnv / 親プロセス）。無ければ CWD から `$HOME` まで遡って `OBSIDIAN_VAULT_PATH=` を含む `.env` を探し、最初に見つかったものを採る。どちらも無ければ止まり、`.claude/settings.json`（`env`）・shell rc・direnv のどれかで設定するようユーザーに伝える —— パスを決め打ちしたり vault を推測したりしない。`CLAUDE_HISTORY_PATH` も同じ方法で読む（既定は `~/.claude`）
+2. vault のルートにある `.manifest.json` を読み、何が取り込み済みかを確かめる
+3. 既存のページを探すため、抽出する話題で vault のルートにある `index.md` を Grep する。丸ごと読むのは grep がすべて空で返ったときだけ
+4. **プロジェクトの絞り込み** —— 環境変数から `WIKI_SKIP_PROJECTS` を読む: カンマ区切りの部分文字列で、未設定か空なら何も飛ばさない。名前にそのどれかを含むプロジェクトディレクトリを、下の**すべての**手順（スキャン・差分・サンプリング・manifest への書き込み）から除外する。ユーザーがこの回だけ飛ばすプロジェクトを追加で挙げたら、それも加える。除外は**1 回だけ、一律に**かける —— 個々のコマンドに `grep -v` のフィルタを手書きしない。手書きするとスキャンと manifest の手順の間で食い違っていく。
 
-## Ingest Modes
+## 取り込みモード
 
-### Append Mode (default)
+### 追記モード（既定）
 
-Check `.manifest.json` for each source file (conversation JSONL, memory file). Only process:
+ソースファイル（会話の JSONL・メモリファイル）ごとに `.manifest.json` を確かめる。処理するのは次のものだけ:
 
-- Files not in the manifest (new conversations, new memory files, new projects)
-- Files whose modification time is newer than their `ingested_at` in the manifest
+- manifest に無いファイル（新しい会話・新しいメモリファイル・新しいプロジェクト）
+- 更新時刻が manifest の `ingested_at` より新しいファイル
 
-This is usually what you want — the user ran a few new sessions and wants to capture the delta.
+たいていはこれでよい —— ユーザーは新しいセッションをいくつか走らせ、その差分を取り込みたいのだから。
 
-> **Comparing paths against the manifest.** Sources for *this* skill live under
-> `~/.claude/`, so expand `~` and env vars before deciding a file is "new". **Do not
-> "canonicalize" the manifest itself** — project-relative keys are correct as they stand.
-> When a lookup by exact key misses, retry by basename and accept a path-suffix match
-> before concluding the source is new. Rules and rationale:
-> `~/.claude/doc/doc_wiki_schema.md`.
+> **manifest とパスを突き合わせる。** *この* skill のソースは
+> `~/.claude/` の下にあるので、ファイルを「新規」と判断する前に `~` と環境変数を展開する。
+> **manifest そのものを「正規化」しない** —— プロジェクト相対のキーはそのままで正しい。
+> 完全一致のキーで引いて外れたら、basename で引き直してパスの末尾一致も同じソースと認め、
+> そのうえで初めてソースを新規と結論する。規則と理由:
+> `~/.claude/doc/doc_wiki_schema.md`。
 
-### Reading the Raw JSONL
+### 生の JSONL を読む
 
-Raw JSONL files are 80-90% noise: `tool_use` blocks, `thinking` blocks, `progress` events, and
-`file-history-snapshot` entries dominate by byte count. Filter while reading (Step 3 says how) and
-budget for the larger files: expect to characterize fewer sessions per run than the sampling
-heuristic below suggests.
+生の JSONL ファイルは 80〜90% がノイズである: バイト数では `tool_use` ブロック・`thinking` ブロック・`progress` イベント・
+`file-history-snapshot` エントリが大半を占める。読みながらノイズを除き（方法は Step 3 にある）、
+大きなファイルに備えて予算を見積もる: 1 回の実行で特徴をつかめるセッションは、下の会話のサンプリングの目安が
+示すより少ないと見込む。
 
-### Conversation Sampling Heuristic
+### 会話のサンプリングの目安
 
-A history path can hold hundreds of conversation JSONLs — do not try to read them all. Per project:
+履歴のパスには会話の JSONL が数百本入っていることもある —— 全部を読もうとしない。プロジェクトごとに:
 
-- **If the project already has memory files** (`memory/*.md`), ingest those first (they are
-  pre-distilled signal), then **also process conversations not yet in the manifest** — new
-  conversations should still be captured even for memory-rich projects.
-- **If the project has no memory files**, read only the **3 most recent** conversations (by mtime)
-  to characterize it. Raw JSONL is expensive, so treat 3 as a ceiling rather than a quota — one
-  large session may already exhaust the budget.
-- Always report what you sampled vs skipped (e.g. "agenttower: 7 memory files + 4 new conversations
-  ingested, 14 unchanged conversations skipped"), so the coverage gap is visible rather than silent.
+- **プロジェクトに既にメモリファイルがあれば**（`memory/*.md`）、まずそれを取り込み（蒸留済みの
+  シグナルである）、そのうえで **manifest にまだ無い会話も処理する** —— メモリが豊富なプロジェクトでも、
+  新しい会話は取り込む。
+- **プロジェクトにメモリファイルが無ければ**、特徴をつかむために**最新の 3 件**の会話（mtime 順）だけを
+  読む。生の JSONL は高くつくので、3 は満たすべき最低件数（割り当て）ではなく、超えない上限として扱う ——
+  大きなセッション 1 件で予算を使い切ることもある。
+- サンプリングしたものとスキップしたものを必ず報告する（例: 「agenttower: メモリファイル 7 件 + 新しい会話 4 件を
+  取り込み、変更の無い会話 14 件をスキップ」）。取り込めていない範囲が黙って残らず、見えるようにするため。
 
-### Full Mode
+### 全量モード
 
-Process everything regardless of manifest. Use after the vault has been cleared by hand, or if the user explicitly asks.
+manifest にかかわらずすべてを処理する。vault を手で空にした後か、ユーザーが明示的に求めたときに使う。
 
-## Claude Code Data Layout
+## Claude Code のデータ配置
 
-Claude Code stores data in two locations. Scan **both**.
+Claude Code はデータを 2 か所に保存する。**両方**をスキャンする。
 
-### Source 1: `~/.claude/` (CLI sessions)
+### Source 1: `~/.claude/`（CLI セッション）
 
 ```
 ~/.claude/
-├── projects/                          # Per-project directories
-│   ├── -Users-name-project-a/         # Path-derived name (slashes → dashes)
-│   │   ├── <session-uuid>.jsonl       # Conversation data (JSONL)
-│   │   └── memory/                    # Structured memories
-│   │       ├── MEMORY.md              # Memory index
-│   │       ├── user_*.md              # User profile memories
-│   │       ├── feedback_*.md          # Workflow feedback memories
-│   │       └── project_*.md           # Project context memories
+├── projects/                          # プロジェクトごとのディレクトリ
+│   ├── -Users-name-project-a/         # パスから作った名前（スラッシュ → ダッシュ）
+│   │   ├── <session-uuid>.jsonl       # 会話のデータ（JSONL）
+│   │   └── memory/                    # 構造化されたメモリ
+│   │       ├── MEMORY.md              # メモリの索引
+│   │       ├── user_*.md              # ユーザーのプロフィールのメモリ
+│   │       ├── feedback_*.md          # 作業の進め方へのフィードバックのメモリ
+│   │       └── project_*.md           # プロジェクトの文脈のメモリ
 │   ├── -Users-name-project-b/
 │   │   └── ...
-├── sessions/                          # Session metadata (JSON)
+├── sessions/                          # セッションのメタデータ（JSON）
 │   └── <pid>.json                     # {pid, sessionId, cwd, startedAt, kind, entrypoint}
-├── history.jsonl                      # Global session history
-├── tasks/                             # Subagent task data
-├── plans/                             # Saved plans
+├── history.jsonl                      # 全体のセッション履歴
+├── tasks/                             # サブエージェントのタスクのデータ
+├── plans/                             # 保存されたプラン
 └── settings.json
 ```
 
-### Source 2: `~/Library/Application Support/Claude/local-agent-mode-sessions/` (Desktop app agent sessions)
+### Source 2: `~/Library/Application Support/Claude/local-agent-mode-sessions/`（デスクトップアプリのエージェントセッション）
 
-> **Pre-check first.** Many users are CLI-only and have no desktop sessions. Before walking the structure below, confirm it's non-empty:
+> **まず事前確認する。** 多くのユーザーは CLI しか使わず、デスクトップのセッションを持たない。下の構造を辿る前に、空でないことを確かめる:
 > ```bash
 > DESKTOP_SESSIONS="$HOME/Library/Application Support/Claude/local-agent-mode-sessions"
 > [ -d "$DESKTOP_SESSIONS" ] && find "$DESKTOP_SESSIONS" -name "audit.jsonl" | head -1
 > ```
-> If that prints nothing, skip this entire section (Source 2 + Step 3b) and don't narrate it.
+> 何も出力されなければ、この節全体（Source 2 + Step 3b）を飛ばし、飛ばしたことを語らない。
 
-The Claude desktop app stores local agent mode sessions here. The structure is deeply nested:
+Claude デスクトップアプリは、ローカルのエージェントモードのセッションをここに保存する。構造は深く入れ子になっている:
 
 ```
 ~/Library/Application Support/Claude/local-agent-mode-sessions/
 └── <outer-uuid>/
     └── <inner-uuid>/
-        ├── local_<session-uuid>.json          # Session metadata
+        ├── local_<session-uuid>.json          # セッションのメタデータ
         └── local_<session-uuid>/
-            ├── audit.jsonl                    # Audit log — tool calls, file reads, commands run
+            ├── audit.jsonl                    # 監査ログ —— ツール呼び出し・ファイルの読み取り・実行したコマンド
             └── .claude/
                 └── projects/
-                    └── <path-encoded-name>/   # Same path-encoding as ~/.claude/projects/
-                        └── <uuid>.jsonl       # Conversation transcript (same JSONL format as CLI)
+                    └── <path-encoded-name>/   # ~/.claude/projects/ と同じパスのエンコード
+                        └── <uuid>.jsonl       # 会話ログ（CLI と同じ JSONL 形式）
 ```
 
-**How to find all local-agent-mode sessions:**
+**local-agent-mode のセッションをすべて見つける方法:**
 
 ```bash
-# Find all session metadata files
+# セッションのメタデータファイルをすべて探す
 find ~/Library/Application\ Support/Claude/local-agent-mode-sessions -name "local_*.json" -maxdepth 4
 
-# Find all audit logs
+# 監査ログをすべて探す
 find ~/Library/Application\ Support/Claude/local-agent-mode-sessions -name "audit.jsonl"
 
-# Find all conversation transcripts
+# 会話ログをすべて探す
 find ~/Library/Application\ Support/Claude/local-agent-mode-sessions -name "*.jsonl" -path "*/.claude/projects/*"
 ```
 
-**Session metadata (`local_<uuid>.json`)** — JSON file with fields like `sessionId`, `cwd`, `startedAt`, `model`, `title`. Read this first to understand the session context before opening the transcript.
+**セッションのメタデータ（`local_<uuid>.json`）** —— `sessionId`・`cwd`・`startedAt`・`model`・`title` などのフィールドを持つ JSON ファイル。会話ログを開く前にまずこれを読み、セッションの文脈をつかむ。
 
-**Audit log (`audit.jsonl`)** — Each line is a JSON record of one agent action: tool calls (Read, Write, Bash, Edit), file accesses, shell commands executed, MCP calls. Useful for understanding *what the agent actually did* — often richer signal than the conversation text alone. Fields: `type`, `toolName`, `input`, `output`, `timestamp`, `sessionId`.
+**監査ログ（`audit.jsonl`）** —— 各行が、エージェントの 1 つの操作を記録した JSON レコード: ツール呼び出し（Read・Write・Bash・Edit）、ファイルへのアクセス、実行したシェルコマンド、MCP 呼び出し。*エージェントが実際に何をしたか*を理解するのに役立つ —— 会話の本文だけより豊かなシグナルになることが多い。フィールド: `type`・`toolName`・`input`・`output`・`timestamp`・`sessionId`。
 
-**Conversation transcript (`.claude/projects/.../<uuid>.jsonl`)** — Identical format to CLI conversation JSONL. Parse the same way as `~/.claude/projects/*/*.jsonl`.
+**会話ログ（`.claude/projects/.../<uuid>.jsonl`）** —— CLI の会話 JSONL と同一の形式。`~/.claude/projects/*/*.jsonl` と同じように解析する。
 
-### Key data sources ranked by value (both locations combined):
+### 価値の高い順に並べた主なデータソース（両方の場所を合わせて）:
 
-1. **Memory files** (`~/.claude/projects/*/memory/*.md`) — Pre-distilled, already wiki-friendly. Gold.
-2. **Conversation JSONL** (both `~/.claude/projects/*/*.jsonl` and desktop app transcripts) — Full conversation transcripts. Rich but noisy.
-3. **Audit logs** (`audit.jsonl` in desktop sessions) — Tool-call level record of what was done. Useful for extracting concrete actions, file patterns, and command patterns even when the conversation is sparse.
-4. **Session metadata** (`sessions/*.json` and `local_*.json`) — Tells you which project, when, and what CWD.
+1. **メモリファイル**（`~/.claude/projects/*/memory/*.md`）—— 蒸留済みで、既に wiki に載せやすい形。最上の素材。
+2. **会話の JSONL**（`~/.claude/projects/*/*.jsonl` とデスクトップアプリの会話ログの両方）—— 会話の全記録。豊かだがノイズが多い。
+3. **監査ログ**（デスクトップのセッションの `audit.jsonl`）—— 何が行われたかをツール呼び出しの粒度で記録したもの。会話が乏しいときでも、具体的な操作・ファイルのパターン・コマンドのパターンを抽出するのに役立つ。
+4. **セッションのメタデータ**（`sessions/*.json` と `local_*.json`）—— どのプロジェクトか、いつか、CWD は何かが分かる。
 
-## Step 1: Survey and Compute Delta
+## Step 1: 全体を調べて差分を求める
 
-Scan both data locations and compare against `.manifest.json`:
+両方のデータの場所をスキャンし、`.manifest.json` と突き合わせる:
 
 ```bash
-# --- Source 1: CLI sessions (~/.claude) ---
-# Find all projects
+# --- Source 1: CLI セッション（~/.claude） ---
+# プロジェクトをすべて探す
 Glob: ~/.claude/projects/*/
 
-# Find memory files (highest value)
+# メモリファイルを探す（最も価値が高い）
 Glob: ~/.claude/projects/*/memory/*.md
 
-# Find conversation JSONL files
+# 会話の JSONL ファイルを探す
 Glob: ~/.claude/projects/*/*.jsonl
 
-# --- Source 2: Desktop app local-agent-mode sessions ---
+# --- Source 2: デスクトップアプリの local-agent-mode セッション ---
 DESKTOP_SESSIONS="$HOME/Library/Application Support/Claude/local-agent-mode-sessions"
 
-# Session metadata
+# セッションのメタデータ
 find "$DESKTOP_SESSIONS" -name "local_*.json" -maxdepth 4
 
-# Audit logs
+# 監査ログ
 find "$DESKTOP_SESSIONS" -name "audit.jsonl"
 
-# Conversation transcripts
+# 会話ログ
 find "$DESKTOP_SESSIONS" -name "*.jsonl" -path "*/.claude/projects/*"
 ```
 
-Build a unified inventory and classify each file:
+1 つにまとめた一覧を作り、ファイルごとに分類する:
 
-- **New** — not in manifest → needs ingesting
-- **Modified** — in manifest but file is newer → needs re-ingesting
-- **Unchanged** — in manifest and not modified → skip in append mode
+- **新規** —— manifest に無い → 取り込みが要る
+- **変更あり** —— manifest にあるが、ファイルの方が新しい → 取り込み直しが要る
+- **変更なし** —— manifest にあり、変更されていない → 追記モードでは飛ばす
 
-Report to the user: "Found X CLI projects, Y desktop sessions. Memory files: A. Conversations: B. Audit logs: C. Delta: D new, E modified."
+ユーザーに報告する: 「CLI のプロジェクトを X 件、デスクトップのセッションを Y 件見つけました。メモリファイル: A。会話: B。監査ログ: C。差分: 新規 D・変更あり E。」
 
-## Step 2: Ingest Memory Files First
+## Step 2: まずメモリファイルを取り込む
 
-Memory files are already structured with YAML frontmatter:
+メモリファイルは既に YAML frontmatter で構造化されている:
 
 ```markdown
 ---
@@ -179,24 +179,24 @@ description: one-line description
 type: user|feedback|project|reference
 ---
 
-Memory content here.
+ここにメモリの本文。
 ```
 
-For each memory file:
+メモリファイルごとに:
 
-- Read it and parse the frontmatter
-- `user` type → feeds into an entity page about the user, or concept pages about their domain
-- `feedback` type → feeds into skills pages (workflow patterns, what works, what doesn't)
-- `project` type → feeds into entity pages for the project
-- `reference` type → feeds into reference pages pointing to external resources
+- 読んで frontmatter を解析する
+- `user` 型 → ユーザーについての entity ページか、ユーザーの領域についての concept ページの材料になる
+- `feedback` 型 → skills ページの材料になる（作業の進め方のパターン・うまくいくこと・いかないこと）
+- `project` 型 → そのプロジェクトの entity ページの材料になる
+- `reference` 型 → 外部の資料を指す reference ページの材料になる
 
-The `MEMORY.md` index file in each project is a quick summary — read it first to decide which individual memory files are worth reading in full.
+各プロジェクトの `MEMORY.md` は索引ファイルで、手早く読める要約である —— まずこれを読み、どの個別のメモリファイルを全文読む価値があるかを決める。
 
-## Step 3: Parse Conversation JSONL
+## Step 3: 会話の JSONL を解析する
 
-The input is the raw JSONL at `~/.claude/projects/<proj>/<uuid>.jsonl`.
+入力は `~/.claude/projects/<proj>/<uuid>.jsonl` にある生の JSONL。
 
-**Reading raw JSONL:** Each line is a JSON object:
+**生の JSONL を読む:** 各行が 1 つの JSON オブジェクト:
 
 ```json
 {
@@ -213,7 +213,7 @@ The input is the raw JSONL at `~/.claude/projects/<proj>/<uuid>.jsonl`.
 }
 ```
 
-For assistant messages, `content` may be an array of content blocks:
+アシスタントのメッセージでは、`content` が content ブロックの配列のことがある:
 
 ```json
 {
@@ -225,16 +225,16 @@ For assistant messages, `content` may be an array of content blocks:
 }
 ```
 
-- Filter to `type: "user"` and `type: "assistant"` entries only
-- For assistant entries, extract `text` blocks (skip `thinking` and `tool_use` — those are noise)
-- The `cwd` field tells you which project this conversation belongs to
-- Skip `type: "progress"` — internal agent progress updates
-- Skip `type: "file-history-snapshot"` — file state tracking
-- Skip subagent conversations (under `subagents/` subdirectories) — unless the user asks
+- `type: "user"` と `type: "assistant"` のエントリだけに絞る
+- アシスタントのエントリからは `text` ブロックを抽出する（`thinking` と `tool_use` は飛ばす —— ノイズである）
+- `cwd` フィールドで、この会話がどのプロジェクトのものかが分かる
+- `type: "progress"` は飛ばす —— エージェント内部の進捗の更新
+- `type: "file-history-snapshot"` は飛ばす —— ファイルの状態の追跡
+- サブエージェントの会話（`subagents/` サブディレクトリの下）は飛ばす —— ユーザーが求めない限り
 
-## Step 3b: Parse Audit Logs (desktop sessions only)
+## Step 3b: 監査ログを解析する（デスクトップのセッションのみ）
 
-For each `audit.jsonl` found under `local-agent-mode-sessions/`, read it line by line. Each line is a JSON record of one agent action:
+`local-agent-mode-sessions/` の下で見つけた `audit.jsonl` ごとに、1 行ずつ読む。各行が、エージェントの 1 つの操作を記録した JSON レコード:
 
 ```json
 {
@@ -247,150 +247,150 @@ For each `audit.jsonl` found under `local-agent-mode-sessions/`, read it line by
 }
 ```
 
-**What to extract from audit logs:**
+**監査ログから抽出するもの:**
 
-- **File access patterns** — which files does the agent repeatedly Read or Edit? These are the high-value files in the project. Note them as project references.
-- **Shell commands** — recurring Bash commands reveal the project's build/test/deploy workflow. Distill these into a `skills/` page (e.g. "how this project is built and tested").
-- **Tool call sequences** — if the agent always does Read → Edit → Bash in a particular order, that's a workflow pattern worth capturing.
-- **Error patterns** — failed tool calls (non-zero exit codes, error outputs) reveal pain points, known rough edges, or recurring bugs.
-- **MCP tool calls** — calls to MCP tools reveal which external services and APIs the project integrates with.
+- **ファイルへのアクセスのパターン** —— エージェントが繰り返し Read や Edit するのはどのファイルか？ それがプロジェクトの中で価値の高いファイルである。プロジェクトの参照として書き留める。
+- **シェルコマンド** —— 繰り返し現れる Bash コマンドから、プロジェクトのビルド・テスト・デプロイの手順が分かる。これを `skills/` のページへ蒸留する（例: 「このプロジェクトのビルドとテストの方法」）。
+- **ツール呼び出しの並び** —— エージェントがいつも Read → Edit → Bash を決まった順で行うなら、それは書き留める価値のある作業のパターンである。
+- **エラーのパターン** —— 失敗したツール呼び出し（0 以外の終了コード・エラー出力）から、つまずきどころ・既知の粗い部分・繰り返すバグが分かる。
+- **MCP ツールの呼び出し** —— MCP ツールの呼び出しから、プロジェクトがどの外部サービスや API と連携しているかが分かる。
 
-**Skip from audit logs:**
+**監査ログから飛ばすもの:**
 
-- Routine file reads with no pattern (e.g. reading config files once)
-- Tool outputs that are just noise (long stack traces, verbose logs) — summarize the error class, not the full output
-- Anything that looks like secrets, tokens, or credentials in command arguments or outputs
+- パターンの無い定型的なファイルの読み取り（例: 設定ファイルを 1 回読むだけ）
+- ノイズでしかないツールの出力（長いスタックトレース・冗長なログ）—— 出力全体ではなく、エラーの種類を要約する
+- コマンドの引数や出力の中にある、秘密情報・トークン・認証情報らしきものすべて
 
-**Cross-reference with the conversation transcript:** The audit log tells you *what happened*; the conversation tells you *why*. When both are available for the same session, use them together — the audit log grounds the conversation in concrete actions.
+**会話ログと突き合わせる:** 監査ログは*何が起きたか*を、会話は*なぜか*を教えてくれる。同じセッションで両方が手に入るなら、組み合わせて使う —— 監査ログが会話を具体的な操作に結びつける。
 
-Read the paired `local_<uuid>.json` session metadata before processing the audit log — it gives you `cwd`, `startedAt`, and `title` to contextualize the actions.
+監査ログを処理する前に、対になる `local_<uuid>.json` のセッションのメタデータを読む —— 操作の文脈をつかむための `cwd`・`startedAt`・`title` が得られる。
 
-## Step 4: Cluster by Topic
+## Step 4: 話題ごとにまとめる
 
-Don't create one wiki page per conversation. Instead:
+会話 1 つにつき wiki ページを 1 つ作らない。代わりに:
 
-- Group extracted knowledge **by topic** across conversations
-- A single conversation about "debugging auth + setting up CI" → two separate topics
-- Three conversations across different days about "React performance" → one merged topic
-- The project directory name gives you a natural first-level grouping
+- 抽出した知識を、会話をまたいで**話題ごとに**まとめる
+- 「認証のデバッグ + CI の構築」についての 1 つの会話 → 別々の 2 つの話題
+- 別々の日の「React のパフォーマンス」についての 3 つの会話 → 1 つにまとめた話題
+- プロジェクトのディレクトリ名が、自然な第 1 階層のまとまりになる
 
-## Step 5: Distill into Wiki Pages
+## Step 5: wiki ページへ蒸留する
 
-Each Claude project maps to a project directory in the vault. The project directory name from `~/.claude/projects/` encodes the original path — decode it to get a clean project name:
+Claude の各プロジェクトは、vault のプロジェクトディレクトリに対応する。`~/.claude/projects/` のプロジェクトディレクトリ名は元のパスをエンコードしている —— デコードして整ったプロジェクト名を得る:
 
 ```
 -Users/Documents/projects/my-Project   → myproject
 -Users/Documents/projects/Another-app  → anotherapp
 ```
 
-A name containing `--claude-worktrees-` is a **git worktree of another project, not a new project**: cut the name at that marker and use the left side, so the worktree's sessions land in the existing project page. Details and the measured examples are in `references/claude-data-format.md`.
+`--claude-worktrees-` を含む名前は**新しいプロジェクトではなく、別のプロジェクトの git worktree** である: 名前をその目印で切って左側を使い、worktree のセッションが既存のプロジェクトページに入るようにする。詳細と実測した例は `references/claude-data-format.md` にある。
 
-### Project-specific vs. global knowledge
+### プロジェクト固有の知識とグローバルな知識
 
-| What you found                     | Where it goes               | Example                                             |
-| ---------------------------------- | --------------------------- | --------------------------------------------------- |
-| Project architecture decisions     | `projects/<name>/concepts/` | `projects/my-project/concepts/main-architecture.md` |
-| Project-specific debugging         | `projects/<name>/skills/`   | `projects/my-project/skills/api-rate-limiting.md`   |
-| General concept the user learned   | `concepts/` (global)        | `concepts/react-server-components.md`               |
-| Recurring problem across projects  | `skills/` (global)          | `skills/debugging-hydration-errors.md`              |
-| A tool/service used                | `entities/` (global)        | `entities/vercel-functions.md`                      |
-| Patterns across many conversations | `synthesis/` (global)       | `synthesis/common-debugging-patterns.md`            |
+| 見つけたもの | 置き場 | 例 |
+|---|---|---|
+| プロジェクトのアーキテクチャ上の判断 | `projects/<name>/concepts/` | `projects/my-project/concepts/main-architecture.md` |
+| プロジェクト固有のデバッグ | `projects/<name>/skills/` | `projects/my-project/skills/api-rate-limiting.md` |
+| ユーザーが学んだ一般的な概念 | `concepts/`（グローバル） | `concepts/react-server-components.md` |
+| プロジェクトをまたいで繰り返す問題 | `skills/`（グローバル） | `skills/debugging-hydration-errors.md` |
+| 使っているツール・サービス | `entities/`（グローバル） | `entities/vercel-functions.md` |
+| 多くの会話にまたがるパターン | `synthesis/`（グローバル） | `synthesis/common-debugging-patterns.md` |
 
-For each project with content, create or update the project overview page at `projects/<name>/<name>.md` — **named after the project, not `_project.md`** (Obsidian's graph view uses the filename as the node label; rationale in the schema doc).
+中身のあるプロジェクトごとに、`projects/<name>/<name>.md` のプロジェクト概要ページを作成・更新する —— **`_project.md` ではなく、プロジェクト名で付ける**（Obsidian のグラフビューはファイル名をノードのラベルに使う。理由は schema doc にある）。
 
-**Important:** Distill the _knowledge_, not the conversation. Don't write "In a conversation on March 15, the user asked about X." Write the knowledge itself, with the conversation as a source attribution.
+**重要:** 会話ではなく*知識*を蒸留する。「3 月 15 日の会話で、ユーザーは X について尋ねた。」とは書かない。知識そのものを書き、会話は出典として示す。
 
-**Write a `summary:` frontmatter field** on every new/updated page — 1–2 sentences, ≤200 chars, answering "what is this page about?" for a reader who hasn't opened it. `wiki-query`'s cheap retrieval path reads this field to avoid opening page bodies.
+**`summary:` frontmatter フィールドを書く。** 新規・更新したすべてのページに、1〜2 文・200 字以内で、ページを開いていない読み手に向けて「このページは何についてか？」に答える。`wiki-query` の安価な検索経路は、ページ本文を開かずに済ませるためにこのフィールドを読む。
 
-**Add confidence and lifecycle fields** to every new page's frontmatter:
+新規ページすべての frontmatter に **confidence と lifecycle のフィールドを足す**:
 ```yaml
 base_confidence: 0.42
-lifecycle: draft                # floor. A session transcript is not evidence for its own claims —
-                                # promote only if the transcript shows the check actually being run
+lifecycle: draft                # 下限。セッションの会話ログは、その中の主張自体の証拠にならない ——
+                                # 会話ログに確認が実際に走った様子が出ているときだけ昇格させる
 lifecycle_changed: <ISO date today>
 ```
 
-The values, the ranks, and the promotion rules live in exactly one place — **`~/.claude/doc/doc_wiki_lifecycle_rubric.md`**. Read it before writing or changing any `lifecycle` value; never copy its value list anywhere. Note in particular that a transcript saying a check passed is not the check (meta-verification does not promote), and that the two highest ranks are human-only — AI never writes them.
+値・段・昇格の規則は 1 か所にだけある —— **`~/.claude/doc/doc_wiki_lifecycle_rubric.md`**。`lifecycle` の値を書いたり変えたりする前にそれを読む。その値の一覧をどこにも写さない。特に注意すること: 確認が通ったと言っている会話ログは確認そのものではない（メタ検証では昇格しない）。そして最上位の 2 つの段は人間だけのもので、AI は決して書かない。
 
-On update, leave `lifecycle` and `lifecycle_changed` unchanged unless the transcript itself shows a check being run that raises the rank — then re-rank per the rubric and update `lifecycle_evidence` / `evidence_at` alongside.
+更新時は、段を上げる確認が走った様子を会話ログそのものが示していない限り、`lifecycle` と `lifecycle_changed` を変えない —— 示しているなら、ルーブリックに従って段を付け直し、`lifecycle_evidence` / `evidence_at` も合わせて更新する。
 
-**Mark provenance** per the convention in `~/.claude/doc/doc_wiki_schema.md` (Provenance Markers): every claim carries a marker — `^[extracted]` for a paraphrase of what a source says, `^[inferred]` for a synthesized claim, `^[ambiguous]` for a contested or unclear one. Non-claims (headings, tables, code) stay unmarked and are not counted.
+**provenance を付ける。** `~/.claude/doc/doc_wiki_schema.md`（Provenance Markers）の規約に従う: すべての主張にマーカーを付ける —— ソースが言っていることの言い換えには `^[extracted]`、統合して導いた主張には `^[inferred]`、異論があるか不明瞭なものには `^[ambiguous]`。主張でないもの（見出し・表・コード）には付けず、数えない。
 
-- **Memory files** are mostly extracted — the user wrote them by hand and they're already distilled. Treat memory-derived claims as extracted unless you're stitching together claims from multiple memory files.
-- **Conversation distillation** is mostly inferred. You're synthesizing a coherent claim from many turns of dialogue, often filling in implicit reasoning. Apply `^[inferred]` liberally to synthesized patterns, generalizations across sessions, and "what the user really meant" interpretations.
-- Use `^[ambiguous]` when the user changed their mind across sessions or when assistant and user contradicted each other and the resolution is unclear.
-- Write a `provenance:` frontmatter block on every new/updated page from the actual marker counts (the counting recipe is in the same schema section; the denominator is the total number of markers).
+- **メモリファイル**はおおむね extracted —— ユーザーが手で書いたもので、既に蒸留されている。複数のメモリファイルの主張をつなぎ合わせているのでない限り、メモリ由来の主張は extracted として扱う。
+- **会話からの蒸留**はおおむね inferred。多くのやり取りから筋の通った主張を組み立てており、暗黙の推論を補うことも多い。統合して得たパターン・セッションをまたぐ一般化・「ユーザーが本当に言いたかったこと」の解釈には、`^[inferred]` を惜しまず付ける。
+- セッションをまたいでユーザーの考えが変わったとき、またはアシスタントとユーザーが食い違い、決着がはっきりしないときは `^[ambiguous]` を使う。
+- 新規・更新したすべてのページに、マーカーの実数から `provenance:` frontmatter ブロックを書く（数え方のレシピは同じ schema の節にある。分母はマーカーの総数）。
 
-## Step 6: Update Manifest, Journal, and Special Files
+## Step 6: manifest・ジャーナル・特殊ファイルを更新する
 
-### Update `.manifest.json`
+### `.manifest.json` を更新する
 
-For each source file processed, add/update its entry with:
+処理したソースファイルごとに、次の内容でエントリを追加・更新する:
 
 - `ingested_at`, `size_bytes`, `modified_at`
-- `source_type`: one of `"claude_conversation"`, `"claude_memory"`, `"claude_audit_log"`, `"claude_desktop_session"`
-- `project`: the decoded project name
-- `pages_created` and `pages_updated` lists
+- `source_type`: `"claude_conversation"`・`"claude_memory"`・`"claude_audit_log"`・`"claude_desktop_session"` のいずれか
+- `project`: デコードしたプロジェクト名
+- `pages_created` と `pages_updated` のリスト
 
-Also update the `projects` section of the manifest. **Its key set is defined in
-`~/.claude/doc/doc_wiki_schema.md` (`.manifest.json` 節) — follow it and do not invent fields
-of your own here.** Write it as a single `jq` command in `.projects["<name>"] += {…}` form.
+manifest の `projects` 節も更新する。**キーの集合は
+`~/.claude/doc/doc_wiki_schema.md`（`.manifest.json` 節）で定義されている —— それに従い、ここで独自の
+フィールドを作り出さない。** `.projects["<name>"] += {…}` の形の 1 本の `jq` コマンドで書く。
 
-⚠️ **Merge key by key — never replace the entry.** `wiki-update` writes an entry for the same
-repository under the same key, and `source_cwd` / `last_commit_synced` come from there.
-Assigning the object whole (`jq '.projects["<name>"] = {…}'`) drops them, which kills the
-`Source code:` line in `wiki-query` and forces the next delta computation
-(`git merge-base --is-ancestor <last_commit_synced> HEAD`) into a full re-scan of the project.
-Reuse the key that is already in the manifest rather than adding a second entry for the same
-repo under a differently-spelled name.
+⚠️ **キー単位でマージする —— エントリを決して置き換えない。** `wiki-update` も同じリポジトリのエントリを同じキーで
+書いており、`source_cwd` / `last_commit_synced` はそちらから来る。
+オブジェクトを丸ごと代入する（`jq '.projects["<name>"] = {…}'`）とそれらが落ち、`wiki-query` の
+`Source code:` の行が出なくなり、次回の差分計算
+（`git merge-base --is-ancestor <last_commit_synced> HEAD`）がプロジェクト全体の再スキャンになる。
+同じリポジトリのエントリを綴りの違う名前で 2 つ目として足さず、manifest に既にあるキーを
+使い回す。
 
-What this step writes into the entry — and nothing beyond it:
+この手順がエントリに書くもの —— これ以外は書かない:
 
-- `last_synced` — the `date -u +%Y-%m-%dT%H:%M:%SZ` output from this run.
-- `pages_in_vault` — append the pages you wrote, deduped against what is already listed.
-- `note` — free text, optional. Use it when the run leaves something worth remembering
-  (e.g. which sessions were sampled vs skipped).
-- `source_cwd` — **only if the entry has none yet.** Take it from the `cwd` field on the JSONL
-  lines; do **not** derive it by decoding the project directory name, which encodes whatever
-  the CWD happened to be and under a worktree points below the repository root. For a
-  directory name containing `--claude-worktrees-`, cut at the marker and record the parent
-  project's repository root (`references/claude-data-format.md` has the measured examples).
-- `last_commit_synced` — **do not write it.** History ingest never looks at a git repository,
-  so there is no SHA to record. Leave any existing value untouched.
+- `last_synced` —— この実行での `date -u +%Y-%m-%dT%H:%M:%SZ` の出力。
+- `pages_in_vault` —— 書いたページを、既に載っているものと重複しないように追記する。
+- `note` —— 自由記述・任意。その実行で覚えておく価値のあることが残ったときに使う
+  （例: どのセッションをサンプリングし、どれをスキップしたか）。
+- `source_cwd` —— **エントリにまだ無いときだけ。** JSONL の各行の `cwd` フィールドから取る。
+  プロジェクトのディレクトリ名をデコードして導くことは**しない** —— ディレクトリ名はそのときたまたまの CWD を
+  エンコードしたもので、worktree の下ではリポジトリのルートより下を指す。`--claude-worktrees-` を含む
+  ディレクトリ名なら、その目印で切り、親プロジェクトのリポジトリのルートを記録する
+  （実測した例は `references/claude-data-format.md` にある）。
+- `last_commit_synced` —— **書かない。** 履歴の取り込みは git リポジトリを一切見ないので、
+  記録する SHA が無い。既にある値には手を付けない。
 
-Per-run counts (conversations, memory files, desktop sessions, audit logs) do **not** go here.
-The `log.md` line below already carries them, and the `sources` entries hold the per-file record.
+実行ごとの件数（会話・メモリファイル・デスクトップのセッション・監査ログ）は、ここには**書かない**。
+それは下の `log.md` の行が既に持っており、ファイルごとの記録は `sources` のエントリが持つ。
 
-### Create journal entry + update special files
+### ジャーナルのエントリを作り、特殊ファイルを更新する
 
-Update `index.md` and `log.md` per the standard process:
+標準の手順どおりに `index.md` と `log.md` を更新する:
 
 ```
 - [TIMESTAMP] CLAUDE_HISTORY_INGEST projects=N conversations=M desktop_sessions=D audit_logs=A pages_updated=X pages_created=Y mode=append|full
 ```
 
-`[TIMESTAMP]` is the output of `date -u +%Y-%m-%dT%H:%M:%SZ` — run it and paste the result verbatim, never hand-write it (why: schema doc, `log.md`).
+`[TIMESTAMP]` は `date -u +%Y-%m-%dT%H:%M:%SZ` の出力 —— 実行して結果をそのまま貼る。手で書かない（理由: schema doc の `log.md`）。
 
-**`hot.md`** — Read `$OBSIDIAN_VAULT_PATH/hot.md`. `hot.md` is a cache: one line per entry, nothing accumulates.
+**`hot.md`** —— `$OBSIDIAN_VAULT_PATH/hot.md` を読む。`hot.md` はキャッシュで、1 エントリ 1 行。ここには何も溜めない。
 
-⚠️ **Change it only with `Edit` on the smallest span that identifies the spot — the line you are
-replacing, not the section around it. Never write the file whole** (why: schema doc, Special Files).
+⚠️ **変更は、その箇所を特定できる最小の範囲への `Edit` だけで行う —— 置き換える行であって、その周りの節ではない。
+ファイルを丸ごと書かない**（理由: schema doc の Special Files）。
 
-- **`## Recent Activity`** — replace with one line for this run — e.g. "Ingested 5 Claude conversations across 2 projects; surfaced patterns in API design and testing strategy." — keeping the last 3 operations only.
-- **`## Active Threads`** — replace with one line per thread, 3 max, dropping threads that are no longer active. **The patterns you surfaced do not go here** — they belong in the pages you just wrote. If the section is absent from the file, leave it out rather than adding it.
-- **Update the `updated:` field in the frontmatter** to the current timestamp — this is easy to forget; the body edit and the frontmatter bump must both happen.
+- **`## Recent Activity`** —— この実行について 1 行で置き換える —— 例: 「2 つのプロジェクトにまたがる Claude の会話 5 件を取り込み、API 設計とテスト戦略のパターンを掘り出した。」 —— 直近 3 件の操作だけを残す。
+- **`## Active Threads`** —— スレッド 1 つにつき 1 行、最大 3 件で置き換え、もう動いていないスレッドは落とす。**掘り出したパターンはここに書かない** —— それらはいま書いたページに置く。この節がファイルに無ければ、足さずに無いままにする。
+- **frontmatter の `updated:` フィールドを現在のタイムスタンプに更新する** —— 忘れやすい。本文の編集と frontmatter の更新は必ず両方行う。
 
-If the file does not exist, create it with exactly the skeleton in `~/.claude/doc/doc_wiki_schema.md`
-(Special Files → `hot.md`) and then fill the sections. There is no takeaways section — deliberately.
+ファイルが無ければ、`~/.claude/doc/doc_wiki_schema.md` の雛形（Special Files → `hot.md`）どおりに作り、
+それから各節を埋める。教訓の節は無い —— 意図的に置いていない。
 
-## Privacy
+## プライバシー
 
-- Distill and synthesize — don't copy raw conversation text verbatim
-- Skip anything that looks like secrets, API keys, passwords, tokens
-- If you encounter personal/sensitive content, ask the user before including it
-- The user's conversations may reference other people — be thoughtful about what goes in the wiki
+- 蒸留して統合する —— 会話の生のテキストをそのまま写さない
+- 秘密情報・API キー・パスワード・トークンらしきものはすべて飛ばす
+- 個人的な内容や機微な内容に出会ったら、含める前にユーザーに尋ねる
+- ユーザーの会話は他の人に触れていることがある —— wiki に何を入れるかは慎重に考える
 
-## Reference
+## 参照
 
-See `references/claude-data-format.md` for more details on the data structures.
+データ構造の詳細は `references/claude-data-format.md` を参照。
 

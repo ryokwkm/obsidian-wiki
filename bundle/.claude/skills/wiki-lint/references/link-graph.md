@@ -1,115 +1,115 @@
-# Link graph — manual fallback
+# リンクグラフ —— 手作業の代替手順
 
-**Use this only when `scripts/linkgraph.py` cannot run** (no `python3`). It is the same
-algorithm written out by hand, and it is a *degraded* version: every step below is a place
-where two runs can disagree. Say in the report that you used the fallback.
+**`scripts/linkgraph.py` を走らせられないときだけ使う**（`python3` が無い）。同じ
+アルゴリズムを手で書き下したもので、*劣化*版である: 下のどの手順も、2 回の実行で
+答えが食い違いうる箇所だ。代替手順を使ったことをレポートに書く。
 
-The script is the definition. If this file and the script disagree, the script is right.
+スクリプトが定義である。このファイルとスクリプトが食い違ったら、スクリプトが正しい。
 
-## 1. Collect the pages
+## 1. ページを集める
 
-Glob `**/*.md` under `$OBSIDIAN_VAULT_PATH`, then drop:
+`$OBSIDIAN_VAULT_PATH` の下を `**/*.md` で Glob し、次を落とす:
 
-- anything under a directory starting with `_` (`_raw/`, `_archived/`, `_staging/`,
-  `_source_docs/`, `_state/`, …) — staging areas and primary sources, not wiki pages
-- anything under `.obsidian/`, `.git/`, `.claude/`
-- anything matching a line in `$OBSIDIAN_VAULT_PATH/.wikilintignore` (one pattern per line,
-  `#` starts a comment). A bare directory name excludes that whole directory; globs
-  (`drafts/*.md`) work too. **This file is shared** — `wiki-dedup`'s candidate script reads
-  the same list, so a path added here also stops being offered as a merge candidate. Keep it
-  as the one place a vault says "this is not a wiki page"; do not add a private skip list.
+- `_` で始まるディレクトリの下にあるもの（`_raw/`、`_archived/`、`_staging/`、
+  `_source_docs/`、`_state/`、…）—— ステージングの領域と一次資料で、wiki ページではない
+- `.obsidian/`、`.git/`、`.claude/` の下にあるもの
+- `$OBSIDIAN_VAULT_PATH/.wikilintignore` のどれかの行に一致するもの（1 行に 1 パターン、
+  `#` でコメントを始める）。素のディレクトリ名はそのディレクトリ全体を除外し、glob
+  （`drafts/*.md`）も効く。**このファイルは共有されている** —— `wiki-dedup` の候補スクリプトも
+  同じ一覧を読むので、ここに足したパスはマージ候補としても挙がらなくなる。これを、
+  vault が「これは wiki ページではない」と言う唯一の場所に保つ。独自の除外リストを足さない。
 
-Keep the excluded files in a separate list rather than forgetting them — a live page can
-link *into* an excluded directory, and that link is not broken (step 5).
+除外したファイルは忘れずに、別の一覧に残しておく —— 生きているページが除外したディレクトリ
+*の中へ*リンクすることがあり、そのリンクはリンク切れではない（手順 5）。
 
-If a file cannot be read (dangling symlink, permissions), record it and carry on. Do not
-let one bad file abort the pass, and do not silently treat it as absent.
+ファイルが読めなければ（リンク先の無い symlink、権限）、記録して先へ進む。1 つの
+悪いファイルで走査全体を止めない。黙って存在しないものとして扱うこともしない。
 
-For each remaining file record three keys:
+残った各ファイルについて、3 つのキーを記録する:
 
-| key | how | example for `project-a/Build Spec.md` |
+| キー | 求め方 | `project-a/Build Spec.md` での例 |
 |---|---|---|
-| `path` | vault-relative path | `project-a/Build Spec.md` |
-| `node` | path minus `.md`, each segment lowercased, spaces → hyphens | `project-a/build-spec` |
-| `base` | filename minus `.md`, lowercased, spaces → hyphens | `build-spec` |
+| `path` | vault からの相対パス | `project-a/Build Spec.md` |
+| `node` | path から `.md` を除き、各セグメントを小文字にし、空白 → ハイフン | `project-a/build-spec` |
+| `base` | ファイル名から `.md` を除き、小文字にし、空白 → ハイフン | `build-spec` |
 
-Also collect each page's frontmatter `aliases:` (both `aliases: [a, b]` and the block list
-form), normalized the same way as `base`.
+各ページの frontmatter の `aliases:` も集め（`aliases: [a, b]` とブロックリストの
+形式の両方）、`base` と同じやり方で正規化する。
 
-## 2. Strip code regions before extracting anything
+## 2. 何かを取り出す前にコード領域を取り除く
 
-The vault is full of literal link syntax used as *examples*. Those are documentation, not
-edges. Scan each file line by line, keeping one piece of state (`inside a fence` + the
-fence marker):
+vault には、*例*として使われたリンク構文そのものがあふれている。それらは説明であって
+辺ではない。各ファイルを 1 行ずつ走査し、状態を 1 つだけ持つ（`inside a fence` と
+フェンスの印）:
 
-1. If inside a fence: the fence closes only on a line whose run is the **same character
-   and at least as long** as the opening run. Either way **replace the line with an empty
-   line** and move on.
-2. If not inside a fence and the line starts with a run of 3+ backticks or 3+ tildes: open
-   a fence, remember **the whole run** as the marker, replace the line with an empty line.
-3. Otherwise remove inline code spans from the line.
+1. フェンスの中なら: フェンスが閉じるのは、連が**同じ文字で、開始の連以上の
+   長さ**の行に限る。どちらの場合も**その行を空行に置き換えて**
+   次へ進む。
+2. フェンスの外で、行が 3 個以上のバッククォートか 3 個以上のチルダの連で始まるなら: フェンスを
+   開き、**連全体**を印として覚え、その行を空行に置き換える。
+3. それ以外なら、その行からインラインのコードスパンを取り除く。
 
-Remembering the whole run matters: a ` ```` ` fence legally contains ` ``` `, so truncating
-the marker to three characters closes the fence early and leaks the rest of the block.
+連全体を覚えることが肝心だ: ` ```` ` のフェンスは ` ``` ` を正当に含められるので、印を
+3 文字に切り詰めるとフェンスが早く閉じ、ブロックの残りが漏れ出す。
 
-An **unclosed fence strips to end of file**. That is deliberate — leaking the tail of a
-file after someone forgot a closing fence is worse than losing the tail.
+**閉じていないフェンスは、ファイルの終わりまで取り除く**。これは意図したものだ —— 誰かが閉じのフェンスを
+書き忘れたあとでファイルの末尾が漏れる方が、末尾を失うより悪い。
 
-Inline code spans: a run of N backticks closes with **exactly N** backticks, and runs
-shorter than N are legal *inside* the span. So `` `[[x]]` `` and ``` ``code with ` inside`` ```
-must both be removed whole. A naive `` `[^`]*` `` gets the second case wrong.
+インラインのコードスパン: N 個のバッククォートの連は**ちょうど N 個**のバッククォートで閉じ、N より
+短い連はスパンの*中で*正当だ。だから `` `[[x]]` `` も ``` ``code with ` inside`` ``` も
+どちらも丸ごと取り除かなければならない。素朴な `` `[^`]*` `` は 2 つ目の場合を誤る。
 
-**Do not strip frontmatter.** `relationships:` entries carry `target: "[[page]]"` and those
-are real edges; dropping them turns pages that only have typed relationships into orphans.
+**frontmatter は取り除かない。** `relationships:` のエントリは `target: "[[page]]"` を持ち、それらは
+本物の辺だ。落とすと、型付きの関係しか持たないページが孤立ページになる。
 
-## 3. Extract link targets — keep track of which notation each came from
+## 3. リンク先を取り出す —— どの記法から来たかを追っておく
 
-Two notations, and **they do not mean the same thing**:
+記法は 2 つあり、**意味は同じではない**:
 
-- **Wikilinks** `[[target]]`, `[[target|label]]`, `[[target#heading]]`, `![[embed]]`.
-  Take the part before `|` and before `#`. Drop it if the target is empty (`[[#heading]]`),
-  contains `{{` (a template placeholder), or ends in an asset extension
-  (png jpg jpeg gif svg webp pdf canvas base excalidraw html htm mp3 mp4 mov zip).
-- **Markdown links** `[label](path.md)`, optionally with `#anchor` and a `"title"`.
-  **Only when the href is not a URL and ends in `.md` as a path component.** Matching
-  "contains `.md`" pulls in `https://www.mdpi.com/…` and `https://…/docs/en/memory.md` —
-  four such false positives existed across the two vaults on 2026-08-05.
+- **wikilink** `[[target]]`、`[[target|label]]`、`[[target#heading]]`、`![[embed]]`。
+  `|` より前、かつ `#` より前の部分を取る。リンク先が空（`[[#heading]]`）、
+  `{{` を含む（テンプレートのプレースホルダ）、またはアセットの拡張子で終わる
+  (png jpg jpeg gif svg webp pdf canvas base excalidraw html htm mp3 mp4 mov zip) なら落とす。
+- **Markdown リンク** `[label](path.md)`。`#anchor` と `"title"` が付くこともある。
+  **href が URL でなく、パスの要素として `.md` で終わるときだけ。** 「`.md` を含む」で
+  一致させると `https://www.mdpi.com/…` や `https://…/docs/en/memory.md` を拾ってしまう ——
+  2026-08-05 には 2 つの vault にまたがってそうした誤検知が 4 件あった。
 
-## 4. Resolve each target — by notation
+## 4. 各リンク先を解決する —— 記法ごとに
 
-Strip a trailing `.md` and lowercase before matching, in every branch.
+どの分岐でも、照合の前に末尾の `.md` を取り除き、小文字にする。
 
-**Markdown link, or any target starting with `./` or `../`:** join it onto the *linking
-file's directory* and normalize (`..` pops a segment; popping past the vault root means
-the link points outside — broken). Look the result up as a `node`. If a markdown link
-fails that way, retry it once as a vault-root path, then stop. If a `./`/`../` target
-fails, it is broken.
+**Markdown リンク、または `./` か `../` で始まるリンク先:** *リンク元のファイルの
+ディレクトリ*につなげて正規化する（`..` はセグメントを 1 つ外す。vault のルートより上へ外すと
+リンクは外を指している —— リンク切れ）。結果を `node` として引く。Markdown リンクが
+それで失敗したら、vault ルートからのパスとして 1 回だけ試し直し、そこで止める。`./`/`../` のリンク先が
+失敗したら、リンク切れだ。
 
-**A markdown link never falls back to a bare name.** `[x](spec.md)` is a path; if no page
-sits at that path, the link is broken. Searching the vault for some other `spec.md` finds
-an unrelated page and reports a working graph over links that do not work.
+**Markdown リンクは決して素の名前へ落ちない。** `[x](spec.md)` はパスだ。そのパスに
+ページが無ければ、リンク切れである。vault から別の `spec.md` を探すと、
+無関係なページが見つかり、機能していないリンクの上に機能しているグラフを報告してしまう。
 
-**Wikilink containing `/`:** exact `node` match, else any page whose `node` ends with
-`/<target>`.
+**`/` を含む wikilink:** `node` の完全一致。無ければ `node` が
+`/<target>` で終わるページ。
 
-**Bare wikilink:** `base` match, else `alias` match. This one *is* vault-wide — that is
-what `[[spec]]` means in Obsidian.
+**素の wikilink:** `base` の一致。無ければ `alias` の一致。こちらは vault 全体が対象*である* —— それが
+Obsidian での `[[spec]]` の意味だ。
 
-**More than one match at any step → ambiguous, not resolved.** Never silently take the
-first. On 2026-08-05 a live vault had three pairs of same-named pages across two sibling
-project directories; taking the first match attributed 110 links to the wrong page.
+**どの手順でも一致が複数なら → 解決ではなく ambiguous。** 最初のものを決して黙って
+採らない。2026-08-05 には、実際に使っている vault で、兄弟関係にある 2 つのプロジェクトの
+ディレクトリにまたがって同名のページが 3 組あった。最初の一致を採ると、110 本のリンクが間違ったページに帰属した。
 
-## 5. Count and classify
+## 5. 数えて分類する
 
-- A link that resolves adds an edge. A link to the page itself counts as neither direction.
-- **incoming** is *how many pages* link here, not how many links point here. Five links
-  from one page is one incoming page — otherwise a single chatty page manufactures a hub.
-  Keep the raw link count separately if you need it.
-- **outgoing** is the number of resolved links out of the page.
-- **broken** = did not resolve. **ambiguous** = matched several pages.
-- **A link into an excluded directory is neither.** The target exists, so it is not broken;
-  the target is not in the graph, so it is not an edge. Count them separately.
-- **orphan** = incoming 0 **and** outgoing 0, excluding the reserved pages
-  `index` / `log` / `hot` / `_insights` / `readme`.
-- Report every page's incoming and outgoing, **including the zeros**. A page missing from
-  the list is indistinguishable from a page you forgot to scan.
+- 解決したリンクは辺を 1 本足す。そのページ自身へのリンクは、どちらの向きにも数えない。
+- **incoming** は、ここを指すリンクの数ではなく、ここへリンクしている*ページの数*だ。1 ページからの
+  5 本のリンクは、入ってくるページ 1 つ —— そうしないと、おしゃべりな 1 ページがハブを作り出す。
+  要るなら、リンクの素の数は別に持っておく。
+- **outgoing** は、そのページから出ていく解決済みのリンクの数。
+- **broken** = 解決しなかった。**ambiguous** = 複数のページに一致した。
+- **除外したディレクトリへのリンクはどちらでもない。** リンク先は存在するのでリンク切れではない。
+  リンク先はグラフに無いので辺でもない。別に数える。
+- **orphan** = incoming 0 **かつ** outgoing 0。ただし予約ページ
+  `index` / `log` / `hot` / `_insights` / `readme` は除く。
+- すべてのページの incoming と outgoing を、**0 のものも含めて**報告する。一覧から抜けたページは、
+  走査し忘れたページと見分けがつかない。

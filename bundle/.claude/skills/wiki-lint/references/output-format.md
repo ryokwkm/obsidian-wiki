@@ -1,10 +1,10 @@
 # Wiki Health Report — output format
 
-The template for a `--check` (report-only) run. One section per lint check, in check order.
-**Omit a section whose check found nothing** — a report of sixteen "0 found" headings is
-skipped wholesale by the agent that reads it at session start.
+`--check`（報告のみ）の実行のための雛形。lint の検査 1 つにつき節 1 つ、検査の順に並べる。
+**何も見つからなかった検査の節は省く** —— 「0 found」の見出しが 16 個並んだレポートは、
+セッション開始時にそれを読むエージェントに丸ごと読み飛ばされる。
 
-Counts here must be the ones from Check 0's script output, not hand-recounted.
+ここの件数は、手で数え直したものではなく、Check 0 のスクリプトの出力のものでなければならない。
 
 ```markdown
 ## Wiki Health Report
@@ -92,6 +92,6 @@ Concept pairs that co-occur frequently but have no synthesis page:
 - `entities/baz.md` — relationships[2]: self-reference (target resolves to this page's own id)
 ```
 
-The over-tag backlog and legacy-lifecycle findings are reported as counts, never one
-finding per page — the rules are in SKILL.md (Check 8a and Rule 12a); the sample lines
-above show the shape.
+タグ過多の未処理分と、旧値の lifecycle の指摘は件数で報告し、ページごとに 1 件ずつ
+報告しない —— 規則は SKILL.md にある（Check 8a と Rule 12a）。上の見本の行が
+その形を示している。

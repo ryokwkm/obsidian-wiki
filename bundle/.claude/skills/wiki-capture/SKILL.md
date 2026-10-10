@@ -3,196 +3,196 @@ name: wiki-capture
 description: 現在の会話を、チャットの書き起こしではなく宣言的な知識として wiki ノートへ保存する。「これを保存して」「この会話を残して」「wiki に追加して」や英語の "save this" / "capture this" と言われたときに使う。`--quick`（「クイックキャプチャ」「raw に放り込んで」/ "quick capture"）は manifest も index も書かず `_raw/` へ 60 秒で投げ込み、後で wiki-ingest が本ページへ昇格させる。
 ---
 
-# Wiki Capture — Conversation to Wiki Note
+# Wiki Capture — 会話を wiki ノートにする
 
-You are preserving knowledge from the current conversation as a permanent wiki note. The goal is to extract the *substance* — the knowledge itself — not a summary of what was said.
+現在の会話から得た知識を、恒久的な wiki ノートとして残す。目的は*中身* —— 知識そのもの —— を取り出すことであって、何が話されたかの要約ではない。
 
-This skill has two modes:
+この skill には 2 つのモードがある:
 
-- **Full mode (default)** — classify the content and write a finished, cross-linked wiki page directly into the right category. This is the rest of this document (Steps 1–7).
-- **Quick mode (`--quick`)** — zero-friction staging: drop findings to `_raw/` in under 60 seconds with no manifest/index/log writes. Used for mid-session capture. See below, then stop — do **not** run the full-mode steps.
+- **フルモード（既定）** —— 内容を分類し、相互リンク済みの完成した wiki ページを適切なカテゴリへ直接書く。この文書の残り（Step 1–7）がこれにあたる。
+- **クイックモード（`--quick`）** —— 手間ゼロのステージング: manifest / index / log を書かずに、知見を 60 秒以内で `_raw/` へ投げ込む。セッションの途中で残すために使う。下を参照し、そこで止まる —— フルモードの手順は実行**しない**。
 
-## Quick Mode (`--quick`)
+## クイックモード（`--quick`）
 
-Trigger when invoked as `/wiki-capture --quick`, or by "quick capture" / "capture this finding" / "save this bug fix" / "save this gotcha" / "drop this to raw" / "quick save to wiki".
+`/wiki-capture --quick` として呼ばれたとき、または "quick capture" / "capture this finding" / "save this bug fix" / "save this gotcha" / "drop this to raw" / "quick save to wiki" と言われたときに発動する。
 
-Quick mode runs only when invoked, so call it while the finding is still in the conversation.
+クイックモードは呼ばれたときにしか走らないので、知見がまだ会話の中にあるうちに呼ぶ。
 
-**Speed contract:** Inline only. No subagents. No manifest/`index.md`/`log.md`/`hot.md` writes. Target: <60 seconds. Promotion to full wiki pages happens later via `/wiki-ingest`.
+**速度の約束:** インラインだけで済ませる。サブエージェントを使わない。manifest / `index.md` / `log.md` / `hot.md` を書かない。目標: 60 秒未満。wiki の本ページへの昇格は、後で `/wiki-ingest` が行う。
 
-1. **Resolve config** — use `OBSIDIAN_VAULT_PATH` if it is already exported; else walk up from CWD to `$HOME` for a `.env` containing `OBSIDIAN_VAULT_PATH` and use the first hit; else tell the user to set it in `.claude/settings.json` (`env` block) and stop. `OBSIDIAN_RAW_DIR` defaults to `$OBSIDIAN_VAULT_PATH/_raw`. **Assume the directory does not exist** — most vaults have never staged a capture — so create it before writing: `mkdir -p "$OBSIDIAN_RAW_DIR"`.
+1. **設定を解決する** —— `OBSIDIAN_VAULT_PATH` が既に export されていればそれを使う。無ければ CWD から `$HOME` まで遡って `OBSIDIAN_VAULT_PATH` を含む `.env` を探し、最初に見つかったものを採る。どちらも無ければ `.claude/settings.json`（`env` ブロック）で設定するようユーザーに伝えて止まる。`OBSIDIAN_RAW_DIR` の既定は `$OBSIDIAN_VAULT_PATH/_raw`。**このディレクトリは無いものと考える** —— ほとんどの vault はまだ一度もキャプチャをステージングしたことがない —— ので、書く前に作る: `mkdir -p "$OBSIDIAN_RAW_DIR"`。
 
-2. **Gate — KEEP or SKIP?** Before extracting, judge whether this session has capture value. This keeps `_raw/` free of files nobody will promote.
-   - **SKIP** (exit with "Nothing worth capturing in this session.") if ALL are true: the conversation is purely conversational (planning/Q&A/explanation) with no implementation; no errors, debugging, or problem-solving visible; nothing surprising or undocumented; every finding is already obvious from the docs.
-   - **KEEP** (proceed) if ANY are true: a fix or workaround was found through investigation; non-obvious library/API/framework behavior was confirmed (edge case, undocumented constraint, time-costing gotcha); a debugging session reached a concrete conclusion; a reusable pattern emerged.
-   - When the **user asked for it, err toward KEEP** — they called it for a reason. When **you reached for it unprompted** (wrapping up a work stretch on your own initiative), **err toward SKIP** — nobody vetted the request, so only KEEP on clear evidence.
+2. **関門 —— KEEP か SKIP か？** 取り出す前に、このセッションに残す価値があるかを判断する。これで、誰も昇格させないファイルが `_raw/` に溜まらずに済む。
+   - **SKIP**（「このセッションには残す価値のあるものがありません。」と伝えて終える）にするのは、次がすべて当てはまるとき: 会話が純粋な対話（計画・Q&A・説明）で、実装を伴わない。エラー・デバッグ・問題解決が見当たらない。意外なことも、文書化されていないことも無い。どの知見もドキュメントから既に明らか。
+   - **KEEP**（先へ進む）にするのは、次のどれか 1 つでも当てはまるとき: 調査を経て修正か回避策が見つかった。ライブラリ・API・フレームワークの自明でない挙動が確かめられた（エッジケース・文書化されていない制約・時間を取られる落とし穴）。デバッグのセッションが具体的な結論に達した。再利用できるパターンが生まれた。
+   - **ユーザーが頼んだときは KEEP 寄りに倒す** —— 理由があって呼んだのだから。**頼まれずに自分から呼んだとき**（一区切りついた作業を自発的に締めくくるとき）は **SKIP 寄りに倒す** —— 誰もその依頼を吟味していないので、明確な証拠があるときだけ KEEP にする。
 
-3. **Scan for reusable findings** — non-obvious bugs and root causes, framework/library gotchas, surprising API behavior, investigated workarounds, environment/toolchain quirks, patterns from debugging. Skip PM updates, config already in CLAUDE.md, inconclusive back-and-forth, anything obvious from the docs, and pleasantries. If nothing material emerged, say so and stop.
+3. **再利用できる知見を探す** —— 自明でないバグとその根本原因、フレームワーク・ライブラリの落とし穴、意外な API の挙動、調べて見つけた回避策、環境・ツールチェーンの癖、デバッグから得たパターン。プロジェクト管理の進捗報告、CLAUDE.md に既にある設定、結論の出ないやりとり、ドキュメントを読めば明らかなこと、挨拶の類は飛ばす。中身のあるものが出てこなければ、そう伝えて止まる。
 
-4. **Cluster by topic** — one `_raw/` file per topic cluster, not per finding. Name each as a kebab-case slug (e.g. `swift-actor-reentrancy`, `nextjs-hydration-mismatch`).
+4. **話題ごとにまとめる** —— `_raw/` のファイルは知見ごとではなく、話題のクラスタごとに 1 本。それぞれ kebab-case のスラッグで名付ける（例: `swift-actor-reentrancy`、`nextjs-hydration-mismatch`）。
 
-5. **Infer project context** from repo names, file paths, framework mentions, error messages. Use the most specific name you can reliably infer; else `null`.
+5. リポジトリ名・ファイルパス・言及されたフレームワーク・エラーメッセージから**プロジェクトの文脈を推定する**。確実に推定できる最も具体的な名前を使い、できなければ `null`。
 
-6. **Write raw files** — for each cluster, write `$OBSIDIAN_RAW_DIR/<ISO-date>-<slug>.md`. Read `references/RAW-FORMAT.md` for the full frontmatter spec, finding-block body structure, and provenance/confidence calibration. Per-cluster fields that vary: `title`, `tags` (2–4, reusing tags that already appear in the vault's `index.md` rather than coining new ones), `summary` (≤200 chars), `project` (inferred or `null`), `base_confidence` and the `provenance.extracted`/`provenance.inferred` split (both from the calibration table in `references/RAW-FORMAT.md` — do not guess a number), `lifecycle_changed` (today), `sources` (`"<project> session (<YYYY-MM-DD>)"`).
+6. **raw ファイルを書く** —— クラスタごとに `$OBSIDIAN_RAW_DIR/<ISO-date>-<slug>.md` を書く。frontmatter の完全な仕様、知見ブロックの本文構成、provenance と confidence のキャリブレーションは `references/RAW-FORMAT.md` を読む。クラスタごとに変わるフィールド: `title`、`tags`（2〜4 個。新しく作らず、vault の `index.md` に既に出ているタグを使い回す）、`summary`（200 字以内）、`project`（推定した名前か `null`）、`base_confidence` と `provenance.extracted` / `provenance.inferred` の配分（どちらも `references/RAW-FORMAT.md` のキャリブレーション表から取る —— 数字を当て推量しない）、`lifecycle_changed`（今日）、`sources`（`"<project> session (<YYYY-MM-DD>)"`）。
 
-7. **Confirm** — list staged files and tell the user to run `/wiki-ingest` to promote them:
+7. **完了を伝える** —— ステージングしたファイルを列挙し、昇格させるには `/wiki-ingest` を実行するようユーザーに伝える:
    ```
    Staged to _raw/:
      _raw/2026-05-27-swift-actor-reentrancy.md   — "Actor reentrancy causes deadlock in async forEach"
    Run /wiki-ingest to promote these to full wiki pages.
    ```
-   Quick mode deliberately does **not** write the manifest, `index.md`, `log.md`, or `hot.md` — promotion via `/wiki-ingest` handles all of that. **Stop here; do not run the full-mode steps below.**
+   クイックモードは意図して manifest・`index.md`・`log.md`・`hot.md` を書か**ない** —— `/wiki-ingest` による昇格がそのすべてを引き受ける。**ここで止まる。下のフルモードの手順は実行しない。**
 
 ---
 
-## Full Mode
+## フルモード
 
-## Before You Start
+## 着手前に
 
-1. **Resolve config** — same as Quick Mode step 1; additionally read `OBSIDIAN_LINK_FORMAT` (default: `wikilink`).
-2. Grep `$OBSIDIAN_VAULT_PATH/index.md` for the concepts you are about to write to find existing pages (Retrieval Primitives in `~/.claude/doc/doc_wiki_schema.md`); read it whole only if the greps come back empty
-3. Read `$OBSIDIAN_VAULT_PATH/hot.md` if it exists — Step 6 edits it and takes its `old_string` from this read
+1. **設定を解決する** —— クイックモードの手順 1 と同じ。加えて `OBSIDIAN_LINK_FORMAT` を読む（既定: `wikilink`）。
+2. これから書く概念で `$OBSIDIAN_VAULT_PATH/index.md` を Grep して既存ページを探す（`~/.claude/doc/doc_wiki_schema.md` の Retrieval Primitives）。丸ごと読むのは grep が空で返ったときだけ
+3. `$OBSIDIAN_VAULT_PATH/hot.md` があれば読む —— Step 6 がこれを編集し、その `old_string` をこの読み込みから取る
 
-When writing internal links in Step 5, apply the `OBSIDIAN_LINK_FORMAT` value per the Link Format rules in `~/.claude/doc/doc_wiki_schema.md` (`wikilink` → `[[path/to/page|display]]`; `markdown` → `[display](relative/path.md)` computed from the current file's directory).
+Step 5 で内部リンクを書くときは、`~/.claude/doc/doc_wiki_schema.md` の Link Format の規則に従って `OBSIDIAN_LINK_FORMAT` の値を当てる（`wikilink` → `[[path/to/page|display]]`、`markdown` → 現在のファイルのディレクトリから計算した `[display](relative/path.md)`）。
 
-## Step 1: Identify What's Worth Preserving
+## Step 1: 残す価値のあるものを見極める
 
-Scan the conversation. Ask: what knowledge emerged here that would be valuable in 3 months with no memory of this chat?
+会話を見渡す。そして問う: この会話を覚えていない 3 か月後にも価値を持つ知識が、ここで何か生まれたか？
 
-Worth preserving:
-- Decisions made and *why* they were made
-- Analysis, frameworks, mental models developed
-- Technical findings, patterns, or procedures
-- Synthesized understanding of a topic
-- Clear explanations of a concept that took effort to arrive at
-- Key facts from an external source discussed in the conversation
+残す価値があるもの:
+- 下した判断と、*なぜ*そう判断したか
+- 組み立てた分析・枠組み・メンタルモデル
+- 技術的な知見・パターン・手順
+- ある話題について統合した理解
+- たどり着くのに手間のかかった、概念の明快な説明
+- 会話で取り上げた外部ソースの重要な事実
 
-Skip:
-- Logistics, scheduling, pleasantries
-- Exploratory back-and-forth where no conclusion was reached
-- Content that's already in the wiki
+飛ばすもの:
+- 段取り・日程調整・挨拶の類
+- 結論に至らなかった探索的なやりとり
+- wiki に既にある内容
 
-If nothing material emerged, tell the user and stop.
+中身のあるものが出てこなければ、ユーザーにそう伝えて止まる。
 
-## Step 2: Classify the Content Type
+## Step 2: 内容の種類を分類する
 
-Assign one of five types — this determines the target folder and tone:
+5 つの種類のどれか 1 つを割り当てる —— これで置き先のフォルダと書きぶりが決まる:
 
-| Type | Description | Target folder |
+| 種類 | 説明 | 置き先のフォルダ |
 |---|---|---|
-| `synthesis` | Multi-step analysis or an answer to a specific question that required reasoning | `synthesis/` |
-| `concept` | A definition, framework, or mental model (what a thing *is*) | `concepts/` |
-| `source` | Summary of an external document, article, or resource discussed | `references/` |
-| `decision` | A strategic, architectural, or design choice and its rationale | `synthesis/` |
-| `session` | A complete discussion summary when the conversation spans multiple topics | `journal/` |
+| `synthesis` | 複数段階の分析、または推論を要した特定の問いへの答え | `synthesis/` |
+| `concept` | 定義・枠組み・メンタルモデル（あるものが*何であるか*） | `concepts/` |
+| `source` | 話題にした外部の文書・記事・リソースの要約 | `references/` |
+| `decision` | 戦略・アーキテクチャ・設計上の選択とその根拠 | `synthesis/` |
+| `session` | 会話が複数の話題にまたがるときの、議論全体の要約 | `journal/` |
 
-If the content clearly belongs to a specific project (detected from context or user mention), place it under `projects/<project-name>/<category>/` instead.
+内容が明らかに特定のプロジェクトに属するなら（文脈やユーザーの言及から判断する）、代わりに `projects/<project-name>/<category>/` の下に置く。
 
-## Step 3: Rewrite as Declarative Knowledge
+## Step 3: 宣言的な知識として書き直す
 
-Do **not** write a summary of the conversation. Write the knowledge itself, in declarative present tense:
+会話の要約を書か**ない**。知識そのものを、宣言的な現在形で書く:
 
-- Not: "The user asked about X and Claude explained that..."
-- Yes: "X works by..."
-- Not: "We decided to use Y because..."
-- Yes: "Y is preferred over Z because [reason]. [^[inferred] if the rationale was implied, not stated explicitly]"
+- 書かない: 「ユーザーが X について尋ね、Claude は…と説明した」
+- 書く: 「X は…によって動く」
+- 書かない: 「…なので Y を使うことにした」
+- 書く: 「[理由] なので、Z より Y がよい。[^[inferred]（根拠が明言されず、暗に示されただけのとき）]」
 
-Apply provenance markers per `~/.claude/doc/doc_wiki_schema.md`:
-- *Extracted* — explicitly stated in the conversation → `^[extracted]`
-- *Inferred* — generalized or synthesized from the conversation → `^[inferred]`
-- *Ambiguous* — disputed, uncertain, or contradictory → `^[ambiguous]`
+`~/.claude/doc/doc_wiki_schema.md` に従って provenance マーカーを付ける:
+- *Extracted* —— 会話の中で明言されたもの → `^[extracted]`
+- *Inferred* —— 会話から一般化・統合したもの → `^[inferred]`
+- *Ambiguous* —— 異論がある・不確か・矛盾しているもの → `^[ambiguous]`
 
-## Step 4: Generate a Slug and Title
+## Step 4: スラッグとタイトルを決める
 
-Derive a clear, descriptive title from the content. Slugify it:
-- Lowercase, words separated by hyphens
-- Max 50 characters
-- Avoid dates in the slug (the frontmatter has `created`)
+内容から、明快で中身の分かるタイトルを導く。それをスラッグにする:
+- 小文字、単語はハイフンで区切る
+- 最大 50 文字
+- スラッグに日付を入れない（frontmatter に `created` がある）
 
-## Step 5: Write the Wiki Note
+## Step 5: wiki ノートを書く
 
-Create the file at the target path with required frontmatter:
+置き先のパスに、必須の frontmatter を付けてファイルを作る:
 
 ```yaml
 ---
 title: >-
   <Title>
 category: <synthesis|concepts|references|journal|skills>
-tags: [<2-5 domain tags already used in the vault's index.md>]
+tags: [<vault の index.md で既に使われているドメインのタグ 2〜5 個>]
 sources:
   - conversation:<ISO-date>
 created: <ISO-8601 timestamp>
 updated: <ISO-8601 timestamp>
 summary: >-
-  <1-2 sentences, ≤200 chars, answering "what knowledge does this page hold?">
+  <1〜2 文・200 字以内で、「このページはどんな知識を持っているか？」に答える>
 provenance:
   extracted: 0.X
   inferred: 0.X
   ambiguous: 0.X
-base_confidence: 0.42           # the formula's fixed output for a single session-transcript source.
-                                # With more distinct sources, recompute per the Confidence formula in
-                                # `~/.claude/doc/doc_wiki_schema.md` (never from the `_raw/` table)
-lifecycle: draft                # floor — captures stay here until a later pass reads the body and
-                                # ranks them per `~/.claude/doc/doc_wiki_lifecycle_rubric.md`
+base_confidence: 0.42           # 出典が会話ログ 1 本のときの、式の固定の出力。
+                                # 別個の出典が増えたら、`~/.claude/doc/doc_wiki_schema.md` の
+                                # Confidence formula に従って計算し直す（`_raw/` の表からは決して取らない）
+lifecycle: draft                # 下限。キャプチャは、後の工程が本文を読んで
+                                # `~/.claude/doc/doc_wiki_lifecycle_rubric.md` に従って段を決めるまで、ここに留まる
 lifecycle_changed: <ISO date today>
 ---
 ```
 
-Body structure by type:
+種類ごとの本文構成:
 
 **synthesis / decision:**
 ```markdown
 # Title
 
 ## Context
-<What prompted this — the problem or question being addressed>
+<きっかけ —— 扱っている問題や問い>
 
 ## Finding / Decision
-<The core knowledge or conclusion>
+<核心の知識、または結論>
 
 ## Reasoning
-<Why this is the case or why this choice was made>
+<なぜそうなのか、またはなぜこの選択をしたのか>
 
 ## Implications
-<What follows from this — what to watch for, next steps, trade-offs>
+<ここから何が言えるか —— 気をつける点・次の一手・トレードオフ>
 
 ## Related
-<[[wikilinks]] to connected pages>
+<関連するページへの [[wikilinks]]>
 ```
 
 **concept:**
 ```markdown
 # Title
 
-<Definition in one clear sentence.>
+<明快な 1 文での定義。>
 
 ## What It Is
-<Explanation of the concept>
+<その概念の説明>
 
 ## How It Works
-<Mechanism or structure>
+<仕組みまたは構造>
 
 ## When to Use
-<Applicability, conditions, trade-offs>
+<適用範囲・条件・トレードオフ>
 
 ## Related
 <[[wikilinks]]>
 ```
 
-**source:** — if the document is a local file (an export, a download), copy it into `_source_docs/` first (`<YYYY-MM-DD>-<original filename>`, default `$OBSIDIAN_VAULT_PATH/_source_docs`, `OBSIDIAN_SOURCES_DIR` overrides) and put the copy's vault-relative path in `sources:`. A path outside the vault is not a durable source — download folders get cleared.
+**source:** —— 文書がローカルファイル（エクスポートやダウンロードしたもの）なら、先に `_source_docs/` へコピーし（`<YYYY-MM-DD>-<original filename>`。既定は `$OBSIDIAN_VAULT_PATH/_source_docs` で、`OBSIDIAN_SOURCES_DIR` があればそちらが優先）、コピーの vault 相対パスを `sources:` に書く。vault の外のパスは長持ちする出典にならない —— ダウンロードフォルダは片付けられる。
 ```markdown
 # Title
 
-> Source: <title or URL>
+> Source: <タイトルまたは URL>
 
 ## What It Covers
-<What the source is about>
+<そのソースが何を扱っているか>
 
 ## Key Points
-<Bulleted claims with provenance markers>
+<provenance マーカー付きの主張の箇条書き>
 
 ## Open Questions
-<What it raises but doesn't answer — omit if none>
+<提起しているが答えていないこと —— 無ければ省く>
 
 ## Related
 <[[wikilinks]]>
@@ -205,50 +205,50 @@ Body structure by type:
 *Session captured: <date>*
 
 ## Topics Covered
-<Brief list>
+<短い一覧>
 
 ## Key Takeaways
-<The 3-5 most important things that emerged>
+<出てきた中で最も重要な 3〜5 点>
 
 ## Decisions Made
-<Any explicit decisions, with rationale>
+<明示的に下した判断があれば、根拠とともに>
 
 ## Open Questions
-<What remains unresolved>
+<未解決のまま残っていること>
 
 ## Related
 <[[wikilinks]]>
 ```
 
-Every note must link to at least 2 existing wiki pages. Search `index.md` before writing. If fewer than 2 related pages exist, create minimal stubs for the most important concepts referenced.
+どのノートも、既存の wiki ページへ必ず 2 つ以上リンクする。書く前に `index.md` を検索する。関連ページが 2 つに満たなければ、言及した概念のうち最も重要なものについて最小限のスタブを作る。
 
-## Step 6: Update Tracking Files
+## Step 6: 追跡ファイルを更新する
 
-**`index.md`** — Add the new page under its category section. One entry is one line: the page's `summary:` field verbatim (≤200 chars). Never grow an entry past that — if the text is too long, fix the page's `summary:`, not the index entry (`wiki-lint` already flags summaries over 200 chars).
+**`index.md`** —— 新しいページを、そのカテゴリの節の下に足す。1 エントリは 1 行で、ページの `summary:` フィールドをそのまま写す（200 字以内）。エントリをそれより長くしない —— 文が長すぎるならページの `summary:` を直し、index のエントリはいじらない（200 字を超える summary は `wiki-lint` が既に指摘する）。
 
-**`log.md`** — Append:
+**`log.md`** —— 追記する:
 ```
 - [TIMESTAMP] CAPTURE type=<type> page="<path>" title="<title>"
 ```
 
-`[TIMESTAMP]` is the output of `date -u +%Y-%m-%dT%H:%M:%SZ` — run it and paste the result verbatim, never hand-write it (why: schema doc, `log.md`).
+`[TIMESTAMP]` は `date -u +%Y-%m-%dT%H:%M:%SZ` の出力 —— 実行して結果をそのまま貼る。手で書かない（理由: schema doc の `log.md`）。
 
-**`hot.md`** — change it only with `Edit`, never `Write`, one line at a time, keeping each `old_string` to the smallest span that covers the change and taking that text from what you just read. In **Recent Activity**: insert one line for what was just captured at the top of the list with one `Edit`, then delete the oldest entry with a **separate** `Edit` so the list stays at 3 operations — doing both in a single `Edit` would force the whole list into `old_string`. Then `Edit` the `updated` timestamp. Other sessions edit the same file concurrently, so a whole-file write silently drops whatever they added between your read and your write; `Edit` needs an exact match, so it fails loudly instead of eating their line — and the smaller the span, the less often it collides at all. **Do not copy the note's takeaways here** — they are already in the note, which is where they belong.
+**`hot.md`** —— 変更は `Edit` だけで行い、`Write` は決して使わない。1 回に 1 行ずつ、各 `old_string` は変更箇所をちょうど覆う最小範囲に留め、その文字列はいま読んだ内容から取る。**Recent Activity** では: いまキャプチャしたものを 1 行、1 回の `Edit` で一覧の先頭に入れ、続いて最も古いエントリを**別の** `Edit` で消して、一覧を 3 件の操作に保つ —— 両方を 1 回の `Edit` でやると、一覧全体を `old_string` に入れることになる。それから `updated` のタイムスタンプを `Edit` する。他のセッションが同じファイルを並行して編集するので、ファイル丸ごとの書き込みは、こちらが読んでから書くまでの間に他のセッションが足したものを黙って落とす。`Edit` は完全一致を要するので、相手の行を食う代わりに目に見えて失敗する —— そして範囲が小さいほど、そもそも衝突しにくい。**ノートの教訓をここに写さない** —— 教訓は既にノートにあり、そこが本来の置き場である。
 
-## Step 7: Confirm to User
+## Step 7: ユーザーに完了を伝える
 
-Report the saved path and title:
+保存したパスとタイトルを報告する:
 ```
 Saved to: projects/<name>/synthesis/<slug>.md
 Title: <Title>
 Type: synthesis
 ```
 
-## Quality Checklist
+## 品質チェックリスト
 
-- [ ] Content rewritten as declarative knowledge (not a chat transcript)
-- [ ] Type classified correctly; target path is in the right folder
-- [ ] Frontmatter complete with title, category, tags, sources, summary, provenance
-- [ ] At least 2 wikilinks to existing pages
-- [ ] `index.md`, `log.md`, and `hot.md` updated
-- [ ] Confirmed save path to user
+- [ ] 内容を宣言的な知識として書き直した（チャットの書き起こしではない）
+- [ ] 種類を正しく分類した。置き先のパスが正しいフォルダにある
+- [ ] frontmatter に title, category, tags, sources, summary, provenance が揃っている
+- [ ] 既存ページへの wikilink が 2 つ以上ある
+- [ ] `index.md`・`log.md`・`hot.md` を更新した
+- [ ] 保存先のパスをユーザーに伝えた

@@ -123,7 +123,7 @@ provenance:
 base_confidence: <computed>     # 式の出力のみ。証拠が強いからと上げない
 lifecycle: draft                # 下限。この skill は直前にした作業を蒸留するので、証拠はたいてい手元にある ——
                                 # `~/.claude/doc/doc_wiki_lifecycle_rubric.md` に従って昇格させ、
-                                # `lifecycle_evidence` と `evidence_at` を足す。近いページの段階を写さない。
+                                # `lifecycle_evidence` と `evidence_at` を足す。近いページの段を写さない。
 lifecycle_changed: TIMESTAMP_DATE
 created: TIMESTAMP
 updated: TIMESTAMP

@@ -1,101 +1,101 @@
-# Consolidate mode (`--consolidate`)
+# consolidate モード（`--consolidate`）
 
-Read this only when the invocation carries `--consolidate`. It switches wiki-lint from
-report-only to **act-and-report** — the "dream cycle" that runs periodically so the wiki
-self-heals.
+呼び出しに `--consolidate` が付いているときだけこれを読む。wiki-lint を
+報告のみから**修復して報告**へ切り替える —— wiki が自分で治るように定期的に走る
+"dream cycle" である。
 
-## Safety protocol
+## 安全の手順
 
-**Always run in dry-run first.** Before writing anything:
+**必ず最初に dry-run で走らせる。** 何かを書く前に:
 
-1. Run every lint check (Checks 0–13 in `SKILL.md`).
-2. Print the planned consolidation actions as a structured list (see Dry-Run Output below).
-3. Ask the user: `"Apply these N changes? [yes / no / select]"`.
-4. Only proceed with writes after explicit confirmation. If the user selects individual
-   actions, apply only those.
-5. Never merge pages — use `wiki-dedup` for that. Never write `lifecycle` — only link,
-   demote `tier`, and flag.
+1. lint の検査をすべて走らせる（`SKILL.md` の Check 0–13）。
+2. 予定している consolidate のアクションを構造化したリストで出力する（下の「dry-run の出力」を参照）。
+3. ユーザーに尋ねる: `"Apply these N changes? [yes / no / select]"`。
+4. 明示的な確認を得てから書き込みに進む。ユーザーが個々の
+   アクションを選んだら、それだけを適用する。
+5. ページを決してマージしない —— それには `wiki-dedup` を使う。`lifecycle` を決して書かない —— 行うのはリンク、
+   `tier` の降格、印を付けることだけ。
 
-The one write that needs no confirmation is the single `log.md` append at the end.
+確認の要らない唯一の書き込みは、最後の `log.md` への 1 回の追記である。
 
-## Consolidation actions (in order, after confirmation)
+## consolidate のアクション（確認の後、この順に）
 
-### Action 1: Fix broken links
+### Action 1: リンク切れを直す
 
-Operate **only** on entries in the script's `broken` list. Never on `ambiguous` ones —
-those links are not wrong, they just match several pages, and demoting one to plain text
-destroys a working reference (see Action 1a).
+スクリプトの `broken` のリストにあるエントリ**だけ**を扱う。`ambiguous` のものは決して扱わない ——
+それらのリンクは誤りではなく、複数のページに一致しているだけで、1 つをプレーンテキストへ降格させると
+機能している参照を壊す（Action 1a を参照）。
 
-For each broken target:
-- Search the vault for a page whose title or filename is the closest fuzzy match (use `Grep` across `index.md` titles)
-- If a unique best match exists (edit distance ≤ 2 characters or same root word): rewrite the link. Note the rewrite: `[[Oringal]] → [[corrected-page]]`.
-- If no match: convert to plain text (`~~[[Target]]~~` → `Target`) and add a comment `<!-- broken link: no match found -->`.
-- Never create a new page just to satisfy a broken link.
-- Rewrite the link **in the notation the source page already uses** — turning
-  `[label](../dir/page.md)` into `[[page]]` changes how it resolves.
+リンク切れの各リンク先について:
+- タイトルかファイル名があいまい一致で最も近いページを vault から探す（`index.md` のタイトルを対象に `Grep` を使う）
+- 最良の一致が 1 つに決まるなら（編集距離が 2 文字以内か、語根が同じ）: リンクを書き換える。書き換えを記録する: `[[Oringal]] → [[corrected-page]]`。
+- 一致が無ければ: プレーンテキストへ変え（`~~[[Target]]~~` → `Target`）、コメント `<!-- broken link: no match found -->` を足す。
+- リンク切れを満たすためだけに新しいページを決して作らない。
+- リンクは**リンク元のページが既に使っている記法で**書き換える ——
+  `[label](../dir/page.md)` を `[[page]]` に変えると、解決のされ方が変わる。
 
-### Action 1a: Qualify ambiguous links
+### Action 1a: 曖昧なリンクを修飾する
 
-For each entry in the script's `ambiguous` list: rewrite the target with its directory
-(`[[build-spec]]` → `[[project-a/build-spec]]`), choosing the page
-that fits the source page's subject. **If which one was meant is not obvious from the
-surrounding text, leave it and report it** — guessing here silently rewires the graph.
+スクリプトの `ambiguous` のリストの各エントリについて: リンク先をディレクトリ付きで書き換える
+（`[[build-spec]]` → `[[project-a/build-spec]]`）。選ぶのは、リンク元のページの主題に
+合うページ。**どれを指したのかが周りの文から
+明らかでなければ、そのままにして報告する** —— ここで推測すると、グラフを黙ってつなぎ替えることになる。
 
-### Action 2: Add missing cross-references for orphans
+### Action 2: 孤立ページへ欠けている相互参照を足す
 
-For each orphan page from Check 1, after excluding the two false positives named there
-(0-byte files, and directories that are deliberately not wiki pages — those get a
-`.wikilintignore` entry instead, never a cross-reference):
-- Grep the vault body text for mentions of the page's title or aliases (case-insensitive).
-  **Ignore mentions inside code fences and inline code** — those are examples, and linking
-  them changes the meaning of the surrounding text.
-- For each mention found in another page, add a link replacing the plain-text mention,
-  in the notation that page already uses.
-- Limit to 3 insertions per orphan — don't flood pages with links.
-- Scope is orphans only. Do not widen it into a full-vault link pass.
+Check 1 の各孤立ページについて、そこで挙げた 2 つの誤検知を除いたうえで
+（0 バイトのファイルと、意図して wiki ページにしていないディレクトリ —— これらには代わりに
+`.wikilintignore` のエントリを足し、相互参照は決して足さない）:
+- vault の本文を、そのページのタイトルか別名への言及で grep する（大文字小文字を区別しない）。
+  **コードフェンスとインラインコードの中の言及は無視する** —— それらは例であり、リンクに
+  すると周りの文の意味が変わる。
+- 別のページで見つかった言及ごとに、プレーンテキストの言及を置き換えてリンクを足す。
+  記法はそのページが既に使っているもの。
+- 孤立ページ 1 つにつき挿入は 3 か所まで —— ページをリンクで溢れさせない。
+- 範囲は孤立ページだけ。vault 全体のリンク付けに広げない。
 
-### Action 3: Flag stale ranked pages
+### Action 3: 陳腐化した序列内のページに印を付ける
 
-**This action never writes `lifecycle`.** A rank is decided by the evidence in the page body
-(`~/.claude/doc/doc_wiki_lifecycle_rubric.md`), and `--consolidate` does not read bodies.
-It may only annotate.
+**このアクションは `lifecycle` を決して書かない。** 段はページ本文の証拠で決まり
+（`~/.claude/doc/doc_wiki_lifecycle_rubric.md`）、`--consolidate` は本文を読まない。
+してよいのは注記だけだ。
 
-Threshold is **90 days** for every tier — the same value as Rule 12c, never a local variant.
-Compute from `evidence_at`, falling back to `updated:`.
+閾値はどの tier でも **90 日** —— Rule 12c と同じ値で、決して独自の変種にしない。
+`evidence_at` から計算し、無ければ `updated:` へ落ちる。
 
-Branch on the **rank** the page's `lifecycle` value sits at — read the rank from the rubric
-(§序列 / §序列外) rather than restating the values here, and match values as a set, never as
-a substring:
+ページの `lifecycle` の値が位置する**段**で分岐する —— 段はここで値を書き直さず、ルーブリック
+（§序列 / §序列外）から読む。値は集合として照合し、決して部分文字列として
+照合しない:
 
-- ranks 5–6 (the rungs a human approved) and stale → add at the top of the body: `> ⚠️ **Stale**: A human vouched for this on <date>. Verify before relying on it.`
-- ranks 3–4 (the rungs an AI checked) and stale → add: `> ⚠️ **Re-verify**: The evidence behind this dates from <date>. Re-running the check is cheap.` **Word it as re-verification, not doubt** — the measurement was correct when taken
-- `index` (unranked) and stale → add: `> ⚠️ **Possibly out of date**: This page indexes others and was last touched <date>.`
-- everything else → no callout
+- rank 5–6（人間が承認した段）で陳腐化 → 本文の先頭に足す: `> ⚠️ **Stale**: A human vouched for this on <date>. Verify before relying on it.`
+- rank 3–4（AI が確かめた段）で陳腐化 → 足す: `> ⚠️ **Re-verify**: The evidence behind this dates from <date>. Re-running the check is cheap.` **疑いではなく再検証として書く** —— 測定はその時点では正しかった
+- `index`（序列外）で陳腐化 → 足す: `> ⚠️ **Possibly out of date**: This page indexes others and was last touched <date>.`
+- それ以外 → コールアウトなし
 
-Only add a callout if one isn't already present.
+コールアウトは、まだ無いときだけ足す。
 
-### Action 4: Tier demotion
+### Action 4: tier の降格
 
-For pages with `tier: supporting` (or unset) that have **≤ 1 incoming link** AND haven't
-been updated in 90+ days:
-- Set `tier: peripheral`.
-- Emit a list of demotions for the user to review.
-- Do not demote `tier: core` pages automatically — those were manually set.
+`tier: supporting`（または未設定）で、**入ってくるリンクが 1 以下**、かつ 90 日以上
+更新されていないページについて:
+- `tier: peripheral` にする。
+- ユーザーが見直せるよう、降格の一覧を出す。
+- `tier: core` のページは自動で降格しない —— それらは手で設定されたものだ。
 
-`≤ 1` is the demotion threshold everywhere in this bundle (same value as the schema doc's
-Importance Tiering — never a local variant).
+`≤ 1` はこのバンドルのどこでも降格の閾値だ（schema doc の
+Importance Tiering と同じ値 —— 決して独自の変種にしない）。
 
-### Action 5: Contradiction callouts
+### Action 5: 矛盾のコールアウト
 
-For each pair of pages marked as contradicting each other (via `relationships: contradicts`
-in frontmatter, or flagged in Check 5):
-- Check whether a `> ⚠️ Contradiction flagged with [[Other Page]]` callout already exists near the relevant claim.
-- If not, add it as one line directly after the claim (or the section) it contradicts. If the contradicting claim cannot be located, put it at the end of the body. Do not assume a "Key Ideas" or "Open Questions" section exists (why: schema doc, Page Template).
-- Do not resolve the contradiction; only flag it visually.
+互いに矛盾すると印の付いたページの組（frontmatter の `relationships: contradicts`
+によるもの、または Check 5 で指摘されたもの）それぞれについて:
+- 該当する主張の近くに `> ⚠️ Contradiction flagged with [[Other Page]]` のコールアウトが既にあるかを確かめる。
+- 無ければ、矛盾している主張（または節）の直後に 1 行で足す。矛盾している主張の場所が特定できなければ、本文の末尾に置く。"Key Ideas" や "Open Questions" の節があると決めてかからない（理由: schema doc の Page Template）。
+- 矛盾を解消しない。目に見える形で印を付けるだけにする。
 
-### Action 6: Write consolidation report
+### Action 6: consolidate のレポートを書く
 
-After all actions, write a report to `synthesis/consolidation-<YYYY-MM-DD>.md`:
+すべてのアクションの後、`synthesis/consolidation-<YYYY-MM-DD>.md` にレポートを書く:
 
 ```markdown
 ---
@@ -142,10 +142,10 @@ updated: <ISO timestamp>
 - `concepts/scaling.md` — flagged contradiction with [[synthesis/efficiency]]
 ```
 
-The report page is a `draft` like any other new page: it states what a run did, and no
-evidence in it was checked, so it never carries a rank above `draft`.
+レポートのページは、ほかの新しいページと同じく `draft` である: 1 回の実行が何をしたかを述べるもので、
+その中の証拠は何も確かめていないので、決して `draft` より上の段を持たない。
 
-## Dry-Run Output (shown before any writes)
+## dry-run の出力（書き込みの前に示す）
 
 ```
 wiki-lint --consolidate — Dry Run
@@ -162,17 +162,17 @@ Planned actions (N total):
 Apply these 7 changes? [yes / no / select by number]
 ```
 
-## Log entry for consolidate mode
+## consolidate モードの log エントリ
 
 ```
 - [TIMESTAMP] LINT_CONSOLIDATE links_fixed=N orphans_rescued=M stale_callouts=K tier_demotions=D contradiction_callouts=C report=synthesis/consolidation-YYYY-MM-DD.md
 ```
 
-`[TIMESTAMP]` is the output of `date -u +%Y-%m-%dT%H:%M:%SZ` — run it and paste the result
-verbatim.
+`[TIMESTAMP]` は `date -u +%Y-%m-%dT%H:%M:%SZ` の出力 —— 実行して結果を
+そのまま貼る。
 
-## No tag alias normalization here
+## ここではタグの別名を正規化しない
 
-This mode does not normalize tag aliases. Do not add such a pass by inventing an alias
-list inside this skill — a tag alias table needs one canonical home first
-(`~/.claude/doc/doc_wiki_schema.md`).
+このモードはタグの別名を正規化しない。この skill の中で別名の一覧を作り出して、そうした処理を
+足さない —— タグの別名表には、まず正規の置き場が 1 つ要る
+（`~/.claude/doc/doc_wiki_schema.md`）。
