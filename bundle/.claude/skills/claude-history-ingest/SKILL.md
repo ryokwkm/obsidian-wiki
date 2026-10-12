@@ -276,11 +276,16 @@ type: user|feedback|project|reference
 
 ## Step 5: wiki ページへ蒸留する
 
-Claude の各プロジェクトは、vault のプロジェクトディレクトリに対応する。`~/.claude/projects/` のプロジェクトディレクトリ名は元のパスをエンコードしている —— デコードして整ったプロジェクト名を得る:
+Claude の各プロジェクトは、vault のプロジェクトディレクトリに対応する。プロジェクト名は次の順で決める:
+
+1. **manifest に同じリポジトリのキーが既にあれば、名前の付け方が違ってもそれを使い回す**（Step 6）。各エントリの `source_cwd` と、JSONL の `cwd` が指すリポジトリのルートを突き合わせる。`source_cwd` の無いエントリは名前で照合する
+2. 無ければ、リポジトリのルートのディレクトリ名を**そのまま**使い、ハイフンも大文字小文字も変えない —— manifest の既存キーや `wiki-update` が使う名前（`ai-settings`・`obsidian-wiki` など）と揃えるためで、ハイフンを落とすと同じプロジェクトのキーが 2 つに割れる。ディレクトリ名が `settings`・`vault` のような一般名で他と紛れるなら、親ディレクトリ名を前置する（例: `~/miidas/settings` → `miidas-settings`）
+
+リポジトリのルートは JSONL の `cwd` から取り、`~/.claude/projects/` のディレクトリ名からは取らない —— 名前の中のハイフンと区切りのダッシュを見分けられない。`cwd` に `/.claude/worktrees/` が含まれるなら、その左側を親リポジトリのルートとして使う。それ以外は、`cwd` がリポジトリの下位ディレクトリのこともあるので `git -C "<cwd>" rev-parse --show-toplevel` で求め、パスが既に消えていれば `cwd` をそのまま使う:
 
 ```
--Users-name-Documents-projects-my-Project   → myproject
--Users-name-Documents-projects-Another-app  → anotherapp
+cwd /Users/name/Documents/projects/my-project               → my-project
+cwd /Users/name/source/another-app/.claude/worktrees/fix-x  → another-app
 ```
 
 `--claude-worktrees-` を含む名前は**新しいプロジェクトではなく、別のプロジェクトの git worktree** である: 名前をその目印で切って左側を使い、worktree のセッションが既存のプロジェクトページに入るようにする。詳細と実測した例は `references/claude-data-format.md` にある。
