@@ -102,6 +102,7 @@ Check 7 と 11 には `--json` の形が要る。
 **確かめ方:**
 - 全ページを丸ごと読まず、frontmatter のブロックを grep する（ファイル先頭の `^---` に範囲を絞る）
 - 必須フィールドが欠けているページを指摘する
+- 予約ファイル（`index.md`・`log.md`・`hot.md`・`_insights.md`・`README.md`）は対象外 —— ページではなく vault の管理ファイル（Check 7 のスクリプトも同じ集合を外す）
 
 **直し方:**
 - 欠けたフィールドを妥当な既定値で足す
@@ -134,7 +135,7 @@ Check 7 と 11 には `--json` の形が要る。
 
 **確かめ方:**
 - 関連するページを読んで主張を比べる必要がある
-- タグを共有しているページや、相互参照の多いページに絞る
+- タグを共有しているページや、相互参照の多いページに絞る（目安: Check 7 のスクリプトの実行結果の `clusters`（Check 8 が読むもの）に挙がったタグを共有するページの組と、Check 0 の `incoming` 上位 10 ページとその相互参照先。vault 全体の総当たりはしない）
 - "however"・"in contrast"・"despite"、日本語なら「しかし」「ただし」「一方」「それに対して」「にもかかわらず」のような言い回しを探す。既に認識されて書かれている矛盾を、認識されていない矛盾と分ける手がかりになりうる
 
 **直し方:**
@@ -335,7 +336,7 @@ confidence と lifecycle の frontmatter スキーマを守らせる。**許さ�
 
 #### Rule 12e — confidence のドリフト
 
-**確かめ方:** Check 7 のスクリプトの実行結果から `base_confidence` を読む（ページが `base_confidence:` と `sources:` の両方を持たなければ `null`）。各エントリは `stored`、`recomputed`、`drift`、`drift_flag`（|drift| > 0.05）、そして `sources` —— 各行が `~/.claude/doc/doc_wiki_schema.md` の既定に従ってどの `source_id` とバケットへまとめられたか —— を持つ。指摘する前に、指摘するページの `sources` を読む: ある出典に対してバケットが明らかに誤っているとき（ベンダーの doc が `unknown` に分類されている等）は、数字を受け入れず `--bucket <source_id>=<bucket>` を付けて走らせ直す。
+**確かめ方:** Check 7 のスクリプトの実行結果から `base_confidence` を読む（ページが `base_confidence:` と `sources:` の両方を持たなければ `null`）。各エントリは `stored`、`recomputed`、`drift`、`drift_flag`（|drift| > 0.05）、そして `sources` —— 各行が `~/.claude/doc/doc_wiki_schema.md` の既定に従ってどの `source_id` とバケットへまとめられたか —— を持つ。指摘する前に、指摘するページの `sources` を読む: ある出典のバケットが schema doc の既定（「`sources:` の行をバケットへ当てる既定」の箇条）に照らして誤っているとき（ベンダーの doc が `unknown` に分類されている等。既定どおりの分類を好みで変えるのは訂正ではない）は、数字を受け入れず `--bucket <source_id>=<bucket>` を付けて走らせ直す。
 
 **直し方（`--fix` のときだけ）:** `--fix-confidence` を付けてスクリプトを走らせ直す（同じ `--bucket` の上書きも付ける）。ドリフトしたページの `base_confidence:` の行だけを書き換える。frontmatter を自動で書き換えるのは、これが**唯一のルール**だ。
 
@@ -347,7 +348,7 @@ confidence と lifecycle の frontmatter スキーマを守らせる。**許さ�
 
 - `lifecycle_evidence` があり、空でない → でなければ**エラー**
 - `evidence_at` があり、ISO 日付として解釈できる → でなければ**エラー**
-- `lifecycle_evidence` が名指す節か表が、まだ本文にある → でなければ**警告**（「証拠が編集で消された。この段はもう裏付けが無い」）
+- `lifecycle_evidence` が名指す節か表が、まだ本文にある → でなければ**警告**（「証拠が編集で消された。この段はもう裏付けが無い」）。判定は `lifecycle_evidence` の文字列から見出し名（`§…`）か表の語を取り、本文を grep する
 
 rank 3–4 では加えて、ルーブリックがその段に要求する形を本文が 1 つも持たないとき**警告**する —— それは §序列 の *証拠として本文にあるべきもの* の列にある。形はそこで読み、このファイルへ写さない。
 
