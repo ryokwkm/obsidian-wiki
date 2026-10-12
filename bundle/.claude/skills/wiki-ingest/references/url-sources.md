@@ -16,7 +16,7 @@
 
 | Step | 何をするか |
 |---|---|
-| U0 | 現在のプロジェクトを検出する（git remote → パッケージのメタデータ → ディレクトリ名 → なし） |
+| U0 | 現在のプロジェクトを検出する（リポジトリのルート → 文脈が無ければ misc → manifest の既存キー → ルートのディレクトリ名） |
 | U0.5 | きれいな抽出のための事前確認（使えるなら `defuddle`） |
 | U1 | URL を取得する（失敗したらスタブページを作り、U7 へ飛ぶ） |
 | U2 | manifest / vault に既にある重複を確かめる |
@@ -30,16 +30,14 @@
 
 ## Step U0: 現在のプロジェクトを検出する
 
-何かを取得する前に、ユーザーが特定のプロジェクトの中で作業しているかを判定する。
+何かを取得する前に、ユーザーが特定のプロジェクトの中で作業しているかを判定し、プロジェクト名を決める。名前の決め方は `wiki-update` Step 1・`claude-history-ingest` Step 5 と同じ規則 —— skill ごとに名前が割れると、同じリポジトリの manifest のキーと `projects/` フォルダが 2 つになる。
 
-**検出の順序（最初に当たったものを採る）:**
+**次の順で決める:**
 
-1. **git remote の名前** —— カレントディレクトリで `git remote get-url origin 2>/dev/null` を実行する。ホスト・org・`.git` の接尾辞を剥がしてリポジトリ名を得る。例: `https://github.com/acme/my-app.git` → `my-app`。
-2. **パッケージのメタデータ** —— git remote が無ければ、`package.json`（`name` フィールド）、`pyproject.toml`（`[project] name`）、`Cargo.toml`（`[package] name`）、`go.mod`（module パスの最後の要素）をこの順に確かめる。
-3. **ディレクトリ名** —— 上のどれも効かなければ、カレントディレクトリの basename を使う。
-4. **プロジェクトの文脈が無い** —— カレントディレクトリが obsidian-wiki リポジトリそのものであるとき、または検出した名前が wiki の vault のディレクトリと一致するときは、「プロジェクトの文脈が無い」として扱い、`misc/` へ落ちる。
-
-**プロジェクト名を正規化する:** 小文字にし、空白とアンダースコアを `-` に置き換え、先頭のドットを剥がす。
+1. **リポジトリのルートを求める** —— `git rev-parse --show-toplevel 2>/dev/null`。パスに `/.claude/worktrees/` を含むならその左側（親リポジトリのルート）。git リポジトリでなければカレントディレクトリ。
+2. **プロジェクトの文脈が無ければ `misc/` へ** —— ルートが obsidian-wiki リポジトリそのものであるとき、またはカレントディレクトリが `$OBSIDIAN_VAULT_PATH` の中にあるときは、manifest にキーがあっても「プロジェクトの文脈が無い」として扱う（Step U3c）。
+3. **manifest の既存キー** —— `.manifest.json` の `projects` に、`source_cwd` が 1 のルートと一致するキーがあれば、名前の付け方が違ってもそれを使い回す（`~` と環境変数は展開してから比べる。例: `qiita_articles` のリポジトリに `qiita-articles` のキー）。`source_cwd` の無いエントリは 4 の名前で照合する。
+4. **リポジトリのルートのディレクトリ名** —— そのまま使い、ハイフンも大文字小文字も変えない。`settings` のような一般名で他と紛れるなら親ディレクトリ名を前置する（例: `~/miidas/settings` → `miidas-settings`）。先頭のドットだけは剥がす（Obsidian はドットで始まるフォルダを隠す）。
 
 候補の名前が得られたら、`$OBSIDIAN_VAULT_PATH/projects/<project-name>/` があるかを確かめる:
 
