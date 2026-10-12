@@ -230,7 +230,8 @@ type: user|feedback|project|reference
 - 最上位の `type` が `user` か `assistant` の行だけを読む。それ以外の `type` はすべて飛ばす
 - `isMeta: true` の行は飛ばす —— hook の feedback・他セッションからのメッセージ・skill 本文の注入など、ハーネスが差し込んだ行
 - `user` の行: `content` が文字列ならそれを、配列なら `text` ブロックだけを読む。`tool_result` ブロック（ツールの出力。`is_error: true` のものも）と `image` ブロックは飛ばす
-- `user` の行でも、`<task-notification>`・`<local-command-stdout>` で始まるもの（ハーネスの通知とコマンドの出力）と `[Request interrupted by user` で始まるものは飛ばす。`<command-name>` / `<command-message>` で始まるもの（スラッシュコマンドの呼び出し）は、`<command-name>` の値と `<command-args>` の中身（あれば）を `/<name> <args>` というユーザーの依頼として読む（`<command-message>` は表示用のラベルなので捨てる。`<command-args>` は無いか空のことが多い）
+- `user` の行でも、`<task-notification>`・`<local-command-stdout>` で始まるもの（ハーネスの通知とコマンドの出力）と `[Request interrupted by user` で始まるものは飛ばす。`Another Claude session sent a message` で始まるもの（サブエージェント・他セッションからの報告。旧版の行は `isMeta` が付いていないので、文頭で見分ける）と、`isCompactSummary: true` の行（文頭は `This session is being continued from a previous conversation`。文脈を圧縮したときの要約で、圧縮前の行が同じファイルに残っているので読むと二重になる）も飛ばす。`<command-name>` / `<command-message>` で始まるもの（スラッシュコマンドの呼び出し）は、`<command-name>` の値と `<command-args>` の中身（あれば）を `/<name> <args>` というユーザーの依頼として読む（`<command-message>` は表示用のラベルなので捨てる。`<command-args>` は無いか空のことが多い）
+- `origin.kind` フィールドがある行（新しい版）では、`human` 以外は文頭に関係なく飛ばす（ハーネスの行は `peer`・`task-notification` などになる）。フィールドの無い行（旧版）だけを上の文頭で見分ける
 - `assistant` の行からは `text` ブロックだけを抽出する（`thinking`・`tool_use` など他のブロックは飛ばす —— ノイズである）
 - `cwd` フィールドで、この会話がどのプロジェクトのものかが分かる
 - サブエージェントの会話（`subagents/` サブディレクトリの下）は飛ばす —— ユーザーが求めない限り

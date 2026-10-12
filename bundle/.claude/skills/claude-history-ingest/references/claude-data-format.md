@@ -42,7 +42,7 @@
 
 | `type` | 何か | 読むもの |
 |---|---|---|
-| `user` | ユーザーのメッセージ。ただしツールの出力（`tool_result`）とハーネスが差し込んだ行（`isMeta: true`。hook の feedback・他セッションからのメッセージ・skill 本文の注入・`[Image …]` の注記など）もこの type で記録される（実測で `user` 行の約 9 割が `tool_result`） | 文字列の content か `text` ブロック。規則の全体は SKILL.md の Step 3 |
+| `user` | ユーザーのメッセージ。ただしツールの出力（`tool_result`）とハーネスが差し込んだ行（`isMeta: true`。hook の feedback・他セッションからのメッセージ・skill 本文の注入・`[Image …]` の注記など）もこの type で記録される（実測で `user` 行の約 9 割が `tool_result`）。`isMeta` の無いハーネス行もある（他セッションの報告・`isCompactSummary: true` の圧縮要約）—— 見分け方は SKILL.md の Step 3 | 文字列の content か `text` ブロック。規則の全体は SKILL.md の Step 3 |
 | `assistant` | アシスタントの応答 | content の `text` ブロック |
 
 #### ユーザーメッセージの構造
