@@ -36,9 +36,9 @@
 - 12 件のエントリがページの `summary:` の逐語ではない。例: `concepts/scaling.md`（エントリ 245 字 / summary 138 字）
 
 ### provenance の問題（N 件）
-- `concepts/scaling.md` — AMBIGUOUS > 15%: 主張の 22% が ambiguous（ソースから取り込み直すか synthesis/ へ移す）
+- `concepts/scaling.md` — 推測が多い: AMBIGUOUS > 15%、主張の 22% が ambiguous（ソースから取り込み直すか synthesis/ へ移す）
 - `entities/some-tool.md` — ドリフト: frontmatter は inferred=0.10、再計算値は 0.45
-- `concepts/transformers.md` — INFERRED=52% のハブページ（入ってくるリンク 31 本）: ここの誤りは広く伝わる
+- `concepts/transformers.md` — 参照が多いのに provenance が怪しいページ: INFERRED=52%、入ってくるリンク 31 本 —— ここの誤りは広く伝わる
 - `synthesis/speculation.md` — 出典の無い統合: `sources:` フィールドが無く、55% が inferred
 
 ### 断片化したタグクラスタ（N 件）
