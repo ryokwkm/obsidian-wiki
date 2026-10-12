@@ -126,7 +126,7 @@ Check 7 と 11 には `--json` の形が要る。
 `updated` のタイムスタンプが、出典に比べて古いページ。
 
 **確かめ方:**
-- ページの `updated` タイムスタンプを、出典ファイルの更新時刻と比べる
+- ページの `updated` タイムスタンプを、出典ファイルの更新時刻と比べる。`sources:` が git のファイル（リポジトリ相対パス。manifest の `source_cwd` の下）なら、その**今の**更新時刻（`git log -1 --format=%cI -- <path>`。無ければファイルの mtime）と比べる。manifest の `modified_at` は取り込んだ時点の値なので使わない。`_source_docs/` のコピーは取り込み時点で凍結した原本なので比べない。URL・会話・他のページも比べられないので飛ばす
 - ページが最後に更新された後で出典が変更されているページを指摘する
 
 ### 5. 矛盾
@@ -430,8 +430,10 @@ wiki-lint である** —— schema doc は意図して写しを持たず、こ�
 - [TIMESTAMP] LINT issues_found=N orphans=X broken_links=Y ambiguous_links=A missing_frontmatter=FM missing_summary=S stale=Z contradictions=W index_issues=I prov_issues=P fragmented_clusters=F over_tagged=T malformed_tags=MT visibility_issues=V promotion_candidates=C synthesis_gaps=G lifecycle_issues=L relationship_issues=R graph=script|manual
 ```
 
-キーの順は検査の順。`issues_found` は他のキーの合計では**ない** —— 過去の実行では
-キーの合計 151 に対して 111、103 に対して 71 が記録された —— だから専用のキーを持たない件数は、
+キーの順は検査の順。`issues_found` は**レポートに書いた指摘の箇条の総数**（各 `###` の節の下の `- ` 行。
+表で報告する節 —— misc の昇格候補・統合の穴 —— は表の行を数える）で、他のキーの合計では**ない**:
+件数で報告する節（Check 8a・Rule 12a）は何十ページ分でも 1 行で、同じページが複数のキーに数えられることもある ——
+過去の実行ではキーの合計 151 に対して 111、103 に対して 71 が記録された。だから専用のキーを持たない件数は、
 合計から逆算できず、そのまま失われる。レポートの節を持つ検査がすべてここにキーを
 持つのはそのためだ。節を足すのと同じ編集でキーも足す。
 

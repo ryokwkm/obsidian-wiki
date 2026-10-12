@@ -28,7 +28,7 @@ provenance:
   extracted: 0.85
   inferred: 0.15
 sources:
-  - "<project> session (<YYYY-MM-DD>)"
+  - "<project> session (<YYYY-MM-DD>)"   # project が null なら "session (<YYYY-MM-DD>)"
 ---
 ```
 

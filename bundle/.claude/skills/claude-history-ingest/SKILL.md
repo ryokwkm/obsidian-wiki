@@ -341,7 +341,7 @@ tier: supporting                # 新しいページの既定（schema doc の�
 
 処理したソースファイルごとに、次の内容でエントリを追加・更新する:
 
-- `ingested_at`, `size_bytes`, `modified_at`
+- `ingested_at`, `size_bytes`, `modified_at`（`content_hash` は書かない —— 会話ログは伸び続けるので毎回変わり、次回に読むかの判定はファイルの更新時刻と `ingested_at` の比較で足りる）
 - `source_type`: `"claude_conversation"`・`"claude_memory"`・`"claude_audit_log"`・`"claude_desktop_session"` のいずれか
 - `project`: デコードしたプロジェクト名
 - `pages_created` と `pages_updated` のリスト
@@ -349,6 +349,7 @@ tier: supporting                # 新しいページの既定（schema doc の�
 manifest の `projects` 節も更新する。**キーの集合は
 `~/.claude/doc/doc_wiki_schema.md`（`.manifest.json` 節）で定義されている —— それに従い、ここで独自の
 フィールドを作り出さない。** `.projects["<name>"] += {…}` の形の 1 本の `jq` コマンドで書く。
+最上位の `last_updated`（この実行の時刻）と `stats`（`total_sources_ingested`・`total_pages`）も更新する。
 
 ⚠️ **キー単位でマージする —— エントリを決して置き換えない。** `wiki-update` も同じリポジトリのエントリを同じキーで
 書いており、`source_cwd` / `last_commit_synced` はそちらから来る。
@@ -358,7 +359,7 @@ manifest の `projects` 節も更新する。**キーの集合は
 同じリポジトリのエントリを綴りの違う名前で 2 つ目として足さず、manifest に既にあるキーを
 使い回す。
 
-この手順がエントリに書くもの —— これ以外は書かない:
+この手順がエントリに書くもの（この実行で 1 ページでも書いた・更新したプロジェクトだけ。何も蒸留しなかったプロジェクトのエントリは作らず、触らない）—— これ以外は書かない:
 
 - `last_synced` —— この実行での `date -u +%Y-%m-%dT%H:%M:%SZ` の出力。
 - `pages_in_vault` —— 書いたページを、既に載っているものと重複しないように追記する。

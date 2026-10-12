@@ -33,7 +33,7 @@ description: 現在の会話を、チャットの書き起こしではなく宣�
 
 5. リポジトリ名・ファイルパス・言及されたフレームワーク・エラーメッセージから**プロジェクトの文脈を推定する**。確実に推定できる最も具体的な名前を使い、できなければ `null`。
 
-6. **raw ファイルを書く** —— クラスタごとに `$OBSIDIAN_RAW_DIR/<ISO-date>-<slug>.md` を書く。frontmatter の完全な仕様、知見ブロックの本文構成、provenance と confidence のキャリブレーションは `references/RAW-FORMAT.md` を読む。クラスタごとに変わるフィールド: `title`、`tags`（2〜5 個。新しく作らず、vault の既存ページの frontmatter を `^tags:` で grep して出てくるタグを使い回す。`index.md` の `( #tag)` は任意なので語彙源にしない）、`summary`（200 字以内）、`project`（推定した名前か `null`）、`base_confidence` と `provenance.extracted` / `provenance.inferred` の配分（どちらも `references/RAW-FORMAT.md` のキャリブレーション表から取る —— 数字を当て推量しない）、`lifecycle_changed`（今日）、`sources`（`"<project> session (<YYYY-MM-DD>)"`）。
+6. **raw ファイルを書く** —— クラスタごとに `$OBSIDIAN_RAW_DIR/<ISO-date>-<slug>.md` を書く。frontmatter の完全な仕様、知見ブロックの本文構成、provenance と confidence のキャリブレーションは `references/RAW-FORMAT.md` を読む。クラスタごとに変わるフィールド: `title`、`tags`（2〜5 個。新しく作らず、vault の既存ページの frontmatter を `^tags:` で grep して出てくるタグを使い回す。`index.md` の `( #tag)` は任意なので語彙源にしない）、`summary`（200 字以内）、`project`（推定した名前か `null`）、`base_confidence` と `provenance.extracted` / `provenance.inferred` の配分（どちらも `references/RAW-FORMAT.md` のキャリブレーション表から取る —— 数字を当て推量しない）、`lifecycle_changed`（今日）、`sources`（`"<project> session (<YYYY-MM-DD>)"`。project が `null` なら `"session (<YYYY-MM-DD>)"`）。
 
 7. **完了を伝える** —— ステージングしたファイルを列挙し、昇格させるには `/wiki-ingest` を実行するようユーザーに伝える:
    ```
@@ -78,7 +78,7 @@ Step 5 で内部リンクを書くときは、`~/.claude/doc/doc_wiki_schema.md`
 
 ## Step 2: 内容の種類を分類する
 
-5 つの種類のどれか 1 つを割り当てる —— これで置き先のフォルダと書きぶりが決まる:
+6 つの種類のどれか 1 つを割り当てる —— これで置き先のフォルダと書きぶりが決まる:
 
 | 種類 | 説明 | 置き先のフォルダ |
 |---|---|---|
@@ -87,6 +87,7 @@ Step 5 で内部リンクを書くときは、`~/.claude/doc/doc_wiki_schema.md`
 | `source` | 話題にした外部の文書・記事・リソースの要約 | `references/` |
 | `decision` | 戦略・アーキテクチャ・設計上の選択とその根拠 | `synthesis/` |
 | `session` | 会話が複数の話題にまたがるときの、議論全体の要約 | `journal/` |
+| `skill` | やり方の知識・再現できる手順（コマンド・設定・回避策の手続き） | `skills/` |
 
 内容が明らかに特定のプロジェクトに属するなら（文脈やユーザーの言及から判断する）、代わりに `projects/<project-name>/<category>/` の下に置く。
 
@@ -122,7 +123,7 @@ title: >-
 category: <synthesis|concepts|references|journal|skills>
 tags: [<vault の既存ページの frontmatter で既に使われているドメインのタグ 2〜5 個>]
 sources:
-  - conversation:<ISO-date>
+  - "<project> session (<YYYY-MM-DD>)"   # project が無い（null）なら "session (<YYYY-MM-DD>)"
 created: <ISO-8601 timestamp>
 updated: <ISO-8601 timestamp>
 summary: >-
@@ -218,6 +219,25 @@ tier: supporting                # 新しいページの既定（schema doc の�
 
 ## Open Questions
 <未解決のまま残っていること>
+
+## Related
+<[[wikilinks]]>
+```
+
+**skill:**
+```markdown
+# Title
+
+<何をするための手順かの 1 文。>
+
+## When to Use
+<適用する状況・前提>
+
+## Steps
+<手順。コマンド・パス・値は実物をそのまま>
+
+## Pitfalls
+<つまずきどころと回避策>
 
 ## Related
 <[[wikilinks]]>

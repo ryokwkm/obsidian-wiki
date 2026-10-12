@@ -165,7 +165,7 @@ wiki-lint --consolidate — dry-run
 ## consolidate モードの log エントリ
 
 ```
-- [TIMESTAMP] LINT_CONSOLIDATE links_fixed=N orphans_rescued=M stale_callouts=K tier_demotions=D contradiction_callouts=C report=synthesis/consolidation-YYYY-MM-DD.md
+- [TIMESTAMP] LINT_CONSOLIDATE links_fixed=N ambiguous_qualified=Q orphans_rescued=M stale_callouts=K tier_demotions=D contradiction_callouts=C report=synthesis/consolidation-YYYY-MM-DD.md
 ```
 
 `[TIMESTAMP]` は `date -u +%Y-%m-%dT%H:%M:%SZ` の出力 —— 実行して結果を

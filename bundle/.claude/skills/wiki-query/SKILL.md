@@ -251,6 +251,8 @@ wiki の中身から回答を組み立てる:
 - [TIMESTAMP] QUERY query="the user's question" result_pages=N mode=normal|index_only|filtered escalated=true|false
 ```
 
+`result_pages` は回答で引用したページの数（「参照したページ」に並べた数）。`escalated` は Step 4（ページ全文の読み込み）か vault 全体の本文 grep まで進んだら `true`。
+
 `[TIMESTAMP]` は `date -u +%Y-%m-%dT%H:%M:%SZ` の出力 —— 実行して結果をそのまま貼る。手で書かない（理由: schema doc の `log.md`）。
 
 ## 回答の形式
