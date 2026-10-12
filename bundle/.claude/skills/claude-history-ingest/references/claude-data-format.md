@@ -38,14 +38,12 @@
 
 場所は `~/.claude/projects/<project-dir>/<session-uuid>.jsonl`。
 
-各行が 1 つのイベント。関係するイベントの種類:
+各行が 1 つのイベント。`type` は Claude Code の版ごとに増える（2026-10 の実測で 19 種類。`attachment`・`system`・`file-history-snapshot` など。旧版にあった `progress` は 0 件）。読むのは次の 2 つだけで、ほかの `type` はすべて飛ばす:
 
-| `type` | 何か | 読む価値は？ |
+| `type` | 何か | 読むもの |
 |---|---|---|
-| `user` | ユーザーのメッセージ | ある —— ユーザーが尋ねたこと・言ったこと |
-| `assistant` | アシスタントの応答 | ある —— content から `text` ブロックを抽出する |
-| `progress` | ツール実行の進捗 | ない —— 内部処理 |
-| `file-history-snapshot` | セッション開始時のファイルの状態 | ない —— ファイルの一覧にすぎない |
+| `user` | ユーザーのメッセージ。ただしツールの出力（`tool_result`）とハーネスが差し込んだ行（`isMeta: true`。hook の feedback・他セッションからのメッセージ・skill 本文の注入・`[Image …]` の注記など）もこの type で記録される（実測で `user` 行の約 9 割が `tool_result`） | 文字列の content か `text` ブロック。規則の全体は SKILL.md の Step 3 |
+| `assistant` | アシスタントの応答 | content の `text` ブロック |
 
 #### ユーザーメッセージの構造
 
@@ -56,6 +54,20 @@
   "timestamp": "2026-03-15T10:30:00.000Z",
   "sessionId": "uuid",
   "cwd": "/Users/name/Documents/projects/my-app"
+}
+```
+
+次のように content が配列で `tool_result` ブロックを持つ `user` 行は、ユーザーの発言ではなくツールの出力（読まない）:
+
+```json
+{
+  "type": "user",
+  "message": {
+    "role": "user",
+    "content": [
+      { "type": "tool_result", "tool_use_id": "...", "content": "...", "is_error": false }
+    ]
+  }
 }
 ```
 

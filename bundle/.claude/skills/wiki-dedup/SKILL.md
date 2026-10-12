@@ -108,7 +108,7 @@ Vault: <name> — N pages compared, M pairs ranked. Read down to rank K; below t
 | 9 | 0.400 | `entities/site-a-official` | `references/site-b-page-specs` | needs-review | スクレイピングの仕様が重なるが、サイトが違う |
 
 ### Summary
-- Pages compared: N (of P scanned; Q excluded, R too short)
+- Pages compared: N (of P scanned; R too short)
 - Verdicts: merge X / layered Y / keep-separate Z / needs-review W
 - Relationship edges added: E
 - Alias collisions found: A

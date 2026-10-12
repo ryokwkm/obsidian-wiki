@@ -34,8 +34,8 @@ description: Claude Code の会話履歴（~/.claude/projects のセッション
 
 ### 生の JSONL を読む
 
-生の JSONL ファイルは 80〜90% がノイズである: バイト数では `tool_use` ブロック・`thinking` ブロック・`progress` イベント・
-`file-history-snapshot` エントリが大半を占める。読みながらノイズを除き（方法は Step 3 にある）、
+生の JSONL ファイルは 80〜90% がノイズである: バイト数ではツールの出力を持つ `user` 行が半分強（2026-10 の実測で 53%。`tool_result` ブロックと、
+その写しの最上位 `toolUseResult`）、`attachment` 行が 19% で、`thinking`・`tool_use` ブロックが続く。読みながらノイズを除き（方法は Step 3 にある）、
 大きなファイルに備えて予算を見積もる: 1 回の実行で特徴をつかめるセッションは、下の会話のサンプリングの目安が
 示すより少ないと見込む。
 
@@ -200,7 +200,7 @@ type: user|feedback|project|reference
 
 ```json
 {
-  "type": "user|assistant|progress|file-history-snapshot",
+  "type": "user|assistant|…",
   "message": {
     "role": "user|assistant",
     "content": "text string"
@@ -225,12 +225,17 @@ type: user|feedback|project|reference
 }
 ```
 
-- `type: "user"` と `type: "assistant"` のエントリだけに絞る
-- アシスタントのエントリからは `text` ブロックを抽出する（`thinking` と `tool_use` は飛ばす —— ノイズである）
+読む行は許可リストで決める（ログの `type` は Claude Code の版ごとに増えるので、飛ばす種類を並べる方式では新しい種類が素通りする）:
+
+- 最上位の `type` が `user` か `assistant` の行だけを読む。それ以外の `type` はすべて飛ばす
+- `isMeta: true` の行は飛ばす —— hook の feedback・他セッションからのメッセージ・skill 本文の注入など、ハーネスが差し込んだ行
+- `user` の行: `content` が文字列ならそれを、配列なら `text` ブロックだけを読む。`tool_result` ブロック（ツールの出力。`is_error: true` のものも）と `image` ブロックは飛ばす
+- `user` の行でも、`<task-notification>`・`<local-command-stdout>` で始まるもの（ハーネスの通知とコマンドの出力）と `[Request interrupted by user` で始まるものは飛ばす。`<command-name>` / `<command-message>` で始まるもの（スラッシュコマンドの呼び出し）は、`<command-name>` の値と `<command-args>` の中身（あれば）を `/<name> <args>` というユーザーの依頼として読む（`<command-message>` は表示用のラベルなので捨てる。`<command-args>` は無いか空のことが多い）
+- `assistant` の行からは `text` ブロックだけを抽出する（`thinking`・`tool_use` など他のブロックは飛ばす —— ノイズである）
 - `cwd` フィールドで、この会話がどのプロジェクトのものかが分かる
-- `type: "progress"` は飛ばす —— エージェント内部の進捗の更新
-- `type: "file-history-snapshot"` は飛ばす —— ファイルの状態の追跡
 - サブエージェントの会話（`subagents/` サブディレクトリの下）は飛ばす —— ユーザーが求めない限り
+
+ツールの出力を読まないのは、量が多く（実測でログの半分強）秘密情報が混ざりやすいうえ、失敗した時点の環境のことしか書いていないから —— 後で解決した失敗が、解決の文脈なしに知識として残る。意味のある失敗は、アシスタントの `text` が原因と対処つきで言い直している。
 
 ## Step 3b: 監査ログを解析する（デスクトップのセッションのみ）
 
@@ -313,6 +318,7 @@ base_confidence: 0.42
 lifecycle: draft                # 下限。セッションの会話ログは、その中の主張自体の証拠にならない ——
                                 # 会話ログに確認が実際に走った様子が出ているときだけ昇格させる
 lifecycle_changed: <ISO date today>
+tier: supporting                # 新しいページの既定（schema doc の Importance Tiering）
 ```
 
 値・段・昇格の規則は 1 か所にだけある —— **`~/.claude/doc/doc_wiki_lifecycle_rubric.md`**。`lifecycle` の値を書いたり変えたりする前にそれを読む。その値の一覧をどこにも写さない。特に注意すること: 確認が通ったと言っている会話ログは確認そのものではない（メタ検証では昇格しない）。そして最上位の 2 つの段は人間だけのもので、AI は決して書かない。

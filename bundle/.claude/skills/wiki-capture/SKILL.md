@@ -33,7 +33,7 @@ description: 現在の会話を、チャットの書き起こしではなく宣�
 
 5. リポジトリ名・ファイルパス・言及されたフレームワーク・エラーメッセージから**プロジェクトの文脈を推定する**。確実に推定できる最も具体的な名前を使い、できなければ `null`。
 
-6. **raw ファイルを書く** —— クラスタごとに `$OBSIDIAN_RAW_DIR/<ISO-date>-<slug>.md` を書く。frontmatter の完全な仕様、知見ブロックの本文構成、provenance と confidence のキャリブレーションは `references/RAW-FORMAT.md` を読む。クラスタごとに変わるフィールド: `title`、`tags`（2〜4 個。新しく作らず、vault の `index.md` に既に出ているタグを使い回す）、`summary`（200 字以内）、`project`（推定した名前か `null`）、`base_confidence` と `provenance.extracted` / `provenance.inferred` の配分（どちらも `references/RAW-FORMAT.md` のキャリブレーション表から取る —— 数字を当て推量しない）、`lifecycle_changed`（今日）、`sources`（`"<project> session (<YYYY-MM-DD>)"`）。
+6. **raw ファイルを書く** —— クラスタごとに `$OBSIDIAN_RAW_DIR/<ISO-date>-<slug>.md` を書く。frontmatter の完全な仕様、知見ブロックの本文構成、provenance と confidence のキャリブレーションは `references/RAW-FORMAT.md` を読む。クラスタごとに変わるフィールド: `title`、`tags`（2〜5 個。新しく作らず、vault の `index.md` に既に出ているタグを使い回す）、`summary`（200 字以内）、`project`（推定した名前か `null`）、`base_confidence` と `provenance.extracted` / `provenance.inferred` の配分（どちらも `references/RAW-FORMAT.md` のキャリブレーション表から取る —— 数字を当て推量しない）、`lifecycle_changed`（今日）、`sources`（`"<project> session (<YYYY-MM-DD>)"`）。
 
 7. **完了を伝える** —— ステージングしたファイルを列挙し、昇格させるには `/wiki-ingest` を実行するようユーザーに伝える:
    ```
@@ -46,6 +46,8 @@ description: 現在の会話を、チャットの書き起こしではなく宣�
 ---
 
 ## フルモード
+
+`--quick` が付いていないときの既定。以下の「着手前に」から「品質チェックリスト」までがフルモードの手順。
 
 ## 着手前に
 
@@ -135,6 +137,7 @@ base_confidence: 0.42           # 出典が会話ログ 1 本のときの、式�
 lifecycle: draft                # 下限。キャプチャは、後の工程が本文を読んで
                                 # `~/.claude/doc/doc_wiki_lifecycle_rubric.md` に従って段を決めるまで、ここに留まる
 lifecycle_changed: <ISO date today>
+tier: supporting                # 新しいページの既定（schema doc の Importance Tiering）
 ---
 ```
 

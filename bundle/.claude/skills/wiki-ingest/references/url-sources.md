@@ -154,7 +154,7 @@ frontmatter はモードによって少し違う:
 title: "<page title>"
 category: references
 project: "<project-name>"
-tags: [<ドメインのタグ 2〜4 個 —— 新しく作らず、index.md に既にあるタグを使い回す>]
+tags: [<ドメインのタグ 2〜5 個 —— 新しく作らず、index.md に既にあるタグを使い回す>]
 sources:
   - "<URL>"
 source_url: "<URL>"
@@ -171,6 +171,7 @@ lifecycle: draft                # 下限 —— URL の取り込みが `sourced`
                                 # 取得日の両方を記録したときだけ。そうでなければここに留まる
                                 # (~/.claude/doc/doc_wiki_lifecycle_rubric.md)
 lifecycle_changed: "<ISO date today>"
+tier: supporting                # 新しいページの既定（schema doc の Importance Tiering）
 ---
 ```
 
@@ -179,7 +180,7 @@ lifecycle_changed: "<ISO date today>"
 ---
 title: "<page title>"
 category: misc
-tags: [<ドメインのタグ 2〜4 個 —— 新しく作らず、index.md に既にあるタグを使い回す>]
+tags: [<ドメインのタグ 2〜5 個 —— 新しく作らず、index.md に既にあるタグを使い回す>]
 sources:
   - "<URL>"
 source_url: "<URL>"
@@ -196,6 +197,7 @@ provenance:
 base_confidence: <computed — see below>
 lifecycle: draft                # 上のプロジェクトモードの frontmatter と同じ規則
 lifecycle_changed: "<ISO date today>"
+tier: supporting                # 新しいページの既定（schema doc の Importance Tiering）
 ---
 ```
 

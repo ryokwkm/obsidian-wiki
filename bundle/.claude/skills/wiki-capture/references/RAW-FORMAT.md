@@ -11,7 +11,7 @@ title: "<クラスタの中身が分かるタイトル>"
 category: skills
 tags:
   - <primary-tech>
-  - <vault の index.md で既に使われているドメインのタグを 1〜3 個追加>
+  - <vault の index.md で既に使われているドメインのタグを 1〜4 個追加>
 summary: "<1〜2 文・200 字以内 —— この知見は何についてのものか？>"
 tier: supporting
 related: []

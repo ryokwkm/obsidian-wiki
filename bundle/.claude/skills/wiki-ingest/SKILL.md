@@ -92,7 +92,7 @@ vault の外にある元のソースは決して書き換えない。`_raw/` の
 - **確かめる:** 先へ進む前に、コピーの SHA-256（`sha256sum` / `shasum -a 256`）が原本のものと一致しなければならない —— どのみち記録する `content_hash` がそれである。
 - **そのうえで、コピーを参照し、渡されたパスは決して参照しない:** `sources:` のエントリと `.manifest.json` のキーは vault からの相対パス（`_source_docs/2026-09-12-report.md`）。どこから来たかは manifest のエントリの `original_path` に残す（Step 7）。
 - **原本には手を付けない** —— 決して移動も削除もしない。
-- **コピーを飛ばすのは、ファイルが git の作業ツリーの中にあるときだけ**（`git -C "$(dirname "<file>")" rev-parse --is-inside-work-tree` が `true` を出す）: 追跡されているファイルはリポジトリから取り戻せるので、複製せず、リポジトリからの相対パスで参照し、commit を書き留める。これは例外であって原則ではない —— 取り込むファイルのほとんどは、他に居場所の無いエクスポートやダウンロードである。
+- **コピーを飛ばすのは、ファイルが git に commit 済みで、その後変わっていないときだけ**（`git -C "$(dirname "<file>")" ls-files --error-unmatch --full-name -- "$(basename "<file>")"` と `git -C "$(dirname "<file>")" diff --quiet HEAD -- "$(basename "<file>")"` がどちらも exit 0。pathspec は `-C` の先からの相対で解釈されるので、必ず basename を渡す —— `"<file>"` のままだと、ディレクトリ付きの相対パスでは追跡済みでも exit 1 になり、下の `log` は空を黙って返す）: その中身はリポジトリから取り戻せるので、複製せず、リポジトリのルートからの相対パス（`ls-files --full-name` の出力そのもの）で参照し、そのファイルを最後に変えた commit（`git -C "$(dirname "<file>")" log -1 --format=%h -- "$(basename "<file>")"`）を manifest のエントリの `source_commit` に書く（Step 7）。未追跡のファイルや未コミットの変更があるファイルはリポジトリから取り戻せないので、ほかのローカルファイルと同じくコピーする。これは例外であって原則ではない —— 取り込むファイルのほとんどは、他に居場所の無いエクスポートやダウンロードである。
 - **サイズ:** 10 MB を超えるファイルはコピーしない。元のパスを参照し、vault に写しが無いことをユーザーに警告し、`sources:` のエントリの末尾に `(not copied — <size>)` を付ける。
 
 URL は対象外（URL から書いたページが vault の記録になる）。`_raw/` の下書きは既に vault の中にある。
@@ -292,7 +292,7 @@ QMD の結果で 3 本以上の論文が同じ概念に触れているなら、�
 - `~/.claude/doc/doc_wiki_schema.md` の汎用のページ雛形（frontmatter ＋ 節）を使う。**`references/` に置く学術論文には、汎用の雛形ではなく `references/paper-template.md` の Paper Deep-Dive Template を使う**（Step 1 の *学術論文* を参照）。
 - 正しいカテゴリのディレクトリに置く
 - 既存のページ少なくとも 2〜3 個へ `[[wikilinks]]` を足す
-- frontmatter の `sources` フィールドにソースを含める —— ローカルファイルなら、その `_source_docs/` のコピーの vault からの相対パスで、読み込んだパスは決して使わない（Step 1）。raw モードでは: `_raw/` ファイルの frontmatter の `capture_source` ＋ `sources` から導く —— `_raw/` のパスそのものを決して使わない（raw モードの節を参照）
+- frontmatter の `sources` フィールドにソースを含める —— ローカルファイルなら、その `_source_docs/` のコピーの vault からの相対パスで、読み込んだパスは決して使わない（Step 1。コピーを飛ばした git のファイルだけは、リポジトリのルートからの相対パス）。raw モードでは: `_raw/` ファイルの frontmatter の `capture_source` ＋ `sources` から導く —— `_raw/` のパスそのものを決して使わない（raw モードの節を参照）
 
 **既存のページを更新するなら:**
 - まず現在のページを読む
@@ -322,7 +322,7 @@ lifecycle: draft                # 下限。本文がページの主張の証拠�
                                 # `lifecycle_evidence` と `evidence_at` を足す。近いページの
                                 # 段を写さない。
 lifecycle_changed: "<ISO date today>"
-tier: supporting              # 新しいページの既定。被リンクが 5 本以上になったら core へ昇格させる
+tier: supporting                # 新しいページの既定（schema doc の Importance Tiering）
 ```
 
 `base_confidence` は `~/.claude/doc/doc_wiki_schema.md`（Confidence and Lifecycle）の式で計算する —— 品質のバケットと `source_id` の規則はそこにある:
@@ -361,7 +361,8 @@ tier: supporting              # 新しいページの既定。被リンクが 5 
   "size_bytes": FILE_SIZE,
   "modified_at": FILE_MTIME,
   "content_hash": "sha256:<64-char-hex>",
-  "original_path": "~/Downloads/report.md",  // _source_docs/ のコピーがどこから来たか（Step 1）。URL と _raw/ のソースでは省く
+  "original_path": "~/Downloads/report.md",  // 読み込んだ元のパス（Step 1）。_source_docs/ のコピーならその出どころ、コピーを飛ばした git のファイルなら読み込んだ絶対パス。URL と _raw/ のソースでは省く
+  "source_commit": "a1b2c3d",  // Step 1 でコピーを飛ばした git のファイルだけ。そのファイルを最後に変えた commit
   "source_type": "document",  // png/jpg/webp/gif と画像だけの PDF なら "image"、チャット・ログ・CSV・JSON のソースなら "data"
   "project": "project-name-or-null",
   "pages_created": ["list/of/pages.md"],
@@ -370,7 +371,7 @@ tier: supporting              # 新しいページの既定。被リンクが 5 
 ```
 `content_hash` は取り込んだ時点のファイルの中身の SHA-256。必ず書く —— 次回以降の実行で飛ばすかを決める主な手がかりである。
 
-エントリの**キー**は、ファイルを読み込んだパスではなく、`_source_docs/` のコピーの vault からの相対パス（Step 1）。読み込んだパスは `original_path` に残すので、元の場所が片付けられた後も provenance が残る。
+エントリの**キー**は、ファイルを読み込んだパスではなく、`_source_docs/` のコピーの vault からの相対パス（Step 1）。読み込んだパスは `original_path` に残すので、元の場所が片付けられた後も provenance が残る。Step 1 でコピーを飛ばした git のファイルだけは、リポジトリのルートからの相対パスがキーになる。そのときも `original_path` に読み込んだ絶対パスを書く —— `source_commit` がどのリポジトリの commit かを、エントリの `project` に頼らず辿れるようにするため（`project` は null のことがある）。
 
 `stats.total_sources_ingested` と `stats.total_pages` も更新する。
 

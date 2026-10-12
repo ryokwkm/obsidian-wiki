@@ -125,6 +125,7 @@ lifecycle: draft                # 下限。この skill は直前にした作業
                                 # `~/.claude/doc/doc_wiki_lifecycle_rubric.md` に従って昇格させ、
                                 # `lifecycle_evidence` と `evidence_at` を足す。近いページの段を写さない。
 lifecycle_changed: TIMESTAMP_DATE
+tier: supporting                # 新しいページの既定（schema doc の Importance Tiering）
 created: TIMESTAMP
 updated: TIMESTAMP
 ---

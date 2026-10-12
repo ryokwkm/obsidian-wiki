@@ -10,9 +10,9 @@
 
 1. lint の検査をすべて走らせる（`SKILL.md` の Check 0–13）。
 2. 予定している consolidate のアクションを構造化したリストで出力する（下の「dry-run の出力」を参照）。
-3. ユーザーに尋ねる: `"Apply these N changes? [yes / no / select]"`。
-4. 明示的な確認を得てから書き込みに進む。ユーザーが個々の
-   アクションを選んだら、それだけを適用する。
+3. ユーザーに尋ねる: `"Apply these N changes? [yes / no / select by number]"`。
+4. 明示的な確認を得てから書き込みに進む。ユーザーが番号で個々の
+   アクションを選んだら、それだけを適用する。番号は dry-run の表示順（Action 1 → 5 の順）に振った通し番号。
 5. ページを決してマージしない —— それには `wiki-dedup` を使う。`lifecycle` を決して書かない —— 行うのはリンク、
    `tier` の降格、印を付けることだけ。
 
@@ -152,12 +152,12 @@ wiki-lint --consolidate — Dry Run
 
 Planned actions (N total):
 [1] Fix broken link: concepts/foo.md:12 [[OldTarget]] → [[correct-target]]
-[1a] Qualify ambiguous link: project-a/a.md [[build-spec]] → [[project-a/build-spec]]
-[2] Add cross-ref: concepts/baz.md ← [[concepts/alpha]] (orphan rescue)
-[3] Stale callout: synthesis/old-analysis.md (lifecycle=verified, 208 days since evidence_at)
-[3] Re-verify callout: project-a/calibration.md (lifecycle=tested, 95 days since evidence_at)
-[4] Tier demotion: concepts/unused.md → peripheral (1 link, 112 days stale)
-[5] Contradiction callout: concepts/scaling.md ↔ [[synthesis/efficiency]]
+[2] Qualify ambiguous link: project-a/a.md [[build-spec]] → [[project-a/build-spec]]
+[3] Add cross-ref: concepts/baz.md ← [[concepts/alpha]] (orphan rescue)
+[4] Stale callout: synthesis/old-analysis.md (lifecycle=verified, 208 days since evidence_at)
+[5] Re-verify callout: project-a/calibration.md (lifecycle=tested, 95 days since evidence_at)
+[6] Tier demotion: concepts/unused.md → peripheral (1 link, 112 days stale)
+[7] Contradiction callout: concepts/scaling.md ↔ [[synthesis/efficiency]]
 
 Apply these 7 changes? [yes / no / select by number]
 ```

@@ -104,7 +104,7 @@ Directories whose name starts with `_` are not wiki pages: every scan (`wiki-lin
 | `_raw/` | quick-capture drafts awaiting promotion | `wiki-capture --quick`, promoted by `wiki-ingest` |
 | `_staging/` | pages awaiting review when `WIKI_STAGED_WRITES=true` | `wiki-ingest` |
 | `_archives/` | vault snapshots for rebuild / restore | archive operations |
-| `_source_docs/` | **the primary sources** — a verbatim copy of every local file ingested, named `<YYYY-MM-DD>-<original filename>`. The vault's copy is the source of record: `sources:` entries and manifest keys point here, never at the path the file was read from (download folders get cleared). Location overridable with `OBSIDIAN_SOURCES_DIR` | `wiki-ingest` (Step 1) |
+| `_source_docs/` | **the primary sources** — a verbatim copy of every local file ingested (except files committed to git and unchanged since, which are referenced by their repo-relative path plus `source_commit` instead), named `<YYYY-MM-DD>-<original filename>`. The vault's copy is the source of record: `sources:` entries and manifest keys point here, never at the path the file was read from (download folders get cleared; the git exception above aside). Location overridable with `OBSIDIAN_SOURCES_DIR` | `wiki-ingest` (Step 1) |
 
 `_source_docs/` is kept **out of the search index on purpose**: an original and the pages distilled from it are near-duplicates, so indexing both makes them compete for the same result slots and lets a figure the distillation corrected resurface with equal weight. Reach the original through the page that cites it (`wiki-query` Step 4).
 
@@ -200,6 +200,8 @@ The manifest enables:
       "modified_at": "2026-06-22T01:23:58Z",
       "content_hash": "sha256:946163e3fb…",
       "source_type": "document",
+      "source_commit": "9a86051",
+      "original_path": "/Users/you/projects/my-project/README.md",
       "project": "my-project",
       "pages_created": ["entities/my-project-repo.md", "synthesis/claude-config-hierarchy.md"],
       "pages_updated": []
@@ -234,6 +236,10 @@ The manifest enables:
 - **ローカルファイルのキーは `_source_docs/` のコピーの vault 相対パス**（`wiki-ingest` Step 1）。渡された元の場所は
   `original_path` に残る。同じファイルを元の場所から再度渡されたときは、キーではなく `content_hash` / `original_path` で
   突き合わせる（キーだけ見ると「新規」に見えて二重に取り込む）。
+- **git に commit 済みで変更の無いファイルは `_source_docs/` へコピーせず、リポジトリのルートからの相対パス
+  （下の Source keys の節で project-relative と呼ぶもの）をキーにして、`source_commit`（そのファイルを最後に
+  変えた commit）と `original_path`（読み込んだ絶対パス）を持つ**（`wiki-ingest` Step 1）。`source_commit` は
+  任意のキーで、これを足す前に取り込んだエントリには無い。
 - **`sources` は無いことがある。** プロジェクト同期だけで育った vault は `projects` しか持たない
   （実在する。破損ではない）。**読む側は全キーを optional として扱う**（`sources` が無いなら
   「ソース単位の履歴は無い」と解釈し、作り直さない）。
@@ -645,7 +651,7 @@ The `tier:` field controls which pages get updated on each ingest pass and their
 **昇格**（`core` への引き上げ）を書く skill は無い。**降格**（`peripheral`）だけは
 `wiki-lint --consolidate` が上の `≤1` / 90 日を条件に、dry-run と明示確認を経て書く
 （`core` は手動設定とみなして自動降格しない）。**この閾値を持つ書き手は 1 つだけ。増やさないこと。**
-新規ページの `supporting` 既定は ingest 側のテンプレが書く。
+新規ページの `supporting` 既定は、ページを書く各 skill の雛形（wiki-ingest・URL 取り込み・wiki-update・wiki-capture・claude-history-ingest）が書く。
 既存の `tier:` 値は規則の外で付与されたものも混ざるが、読む側（`wiki-ingest` の更新判定・
 `wiki-query` の順序付け）は**そのまま信じて使う**。
 
