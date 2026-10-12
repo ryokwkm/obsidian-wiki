@@ -7,7 +7,7 @@ description: Obsidian wiki の健全性を監査する（孤立ページ・壊�
 
 Obsidian wiki の健全性を点検する。目的は、時間とともに wiki の価値を下げていく構造上の問題を見つけて直すことである。
 
-**何かを走査する前に:** `~/.claude/doc/doc_wiki_schema.md` の Retrieval Primitives の表に従う。ページ全体を読むより、frontmatter に絞った grep と節を狙った読み込みを優先する。大きな vault で lint のために全ページを闇雲に読むことこそ、この仕組みが避けるために作られたものだ。
+**何かを走査する前に:** `~/.claude/doc/doc_wiki_schema.md` の読み取りプリミティブの表に従う。ページ全体を読むより、frontmatter に絞った grep と節を狙った読み込みを優先する。大きな vault で lint のために全ページを闇雲に読むことこそ、この仕組みが避けるために作られたものだ。
 
 ## 着手前に
 
@@ -19,7 +19,7 @@ Obsidian wiki の健全性を点検する。目的は、時間とともに wiki 
 
 以下の検査を順に走らせる。成果物は「出力形式」の節に書いた 1 本のレポートである。
 
-### 0. Build the link graph — run this first
+### 0. リンクグラフを作る —— 最初に走らせる
 
 Check 1・2・2a・7・11・13 はどれも同じグラフを読む。スクリプトで 1 回だけ作る:
 
@@ -57,7 +57,7 @@ Check 7 と 11 には `--json` の形が要る。
 **代替手順。** `python3` が使えなければ `references/link-graph.md` に従い、
 手作業の代替手順を使ったことをレポートに書く —— スクリプトと食い違うことが分かっている。
 
-### 1. Orphaned Pages
+### 1. 孤立ページ
 
 スクリプトが `orphans` に挙げるページ: **入ってくるリンクが無く、解決できる出ていくリンクも
 無い**。外へリンクしているページは孤立ページではない —— それが指す先のどこからでも、グラフを
@@ -76,7 +76,7 @@ Check 7 と 11 には `--json` の形が要る。
 - どの既存ページからそこへリンクすべきかを特定する
 - そのページが既に使っている記法で、適切な節にリンクを足す
 
-### 2. Broken Links
+### 2. リンク切れ
 
 スクリプトが `broken` に挙げるリンク: リンク先がどのページにも解決しない。
 
@@ -85,7 +85,7 @@ Check 7 と 11 には `--json` の形が要る。
 - リンク先が存在すべきものなら、作る
 - リンクが誤りなら、消すか直す
 
-### 2a. Ambiguous Links
+### 2a. 曖昧なリンク
 
 スクリプトが `ambiguous` に挙げるリンク: リンク先が**複数の**ページに一致するので、
 どれを指したのか知る術がない。これはリンク切れより悪い —— vault の中で何もおかしく
@@ -95,7 +95,7 @@ Check 7 と 11 には `--json` の形が要る。
 **直し方:** リンクをディレクトリで修飾する（`[[project-a/build-spec]]`
 のように書き、`[[build-spec]]` とは書かない）か、衝突しているページの一方を改名する。
 
-### 3. Missing Frontmatter
+### 3. frontmatter の欠落
 
 すべてのページは次を持つこと: title, category, tags, sources, created, updated。
 
@@ -106,9 +106,9 @@ Check 7 と 11 には `--json` の形が要る。
 **直し方:**
 - 欠けたフィールドを妥当な既定値で足す
 
-指摘は `Missing Frontmatter` の節へ（見本の行は `references/output-format.md`）、その合計は `LINT` の log エントリの `missing_frontmatter=N` へ書く。
+指摘は `frontmatter の欠落` の節へ（見本の行は `references/output-format.md`）、その合計は `LINT` の log エントリの `missing_frontmatter=N` へ書く。
 
-### 3a. Missing Summary (soft warning)
+### 3a. summary の欠落（soft な警告）
 
 すべてのページは `summary:` frontmatter フィールドを*持つのが望ましい* —— 1〜2 文、200 字以内。安価な検索（例: `wiki-query` の index だけを読むモード）は、ページ本文を開かずに済ませるためにこれを読む。
 
@@ -120,7 +120,7 @@ Check 7 と 11 には `--json` の形が要る。
 **直し方:**
 - ページを取り込み直すか、短い summary（ページの内容を 1〜2 文で）を手で書く。
 
-### 4. Stale Content
+### 4. 陳腐化した内容
 
 `updated` のタイムスタンプが、出典に比べて古いページ。
 
@@ -128,20 +128,20 @@ Check 7 と 11 には `--json` の形が要る。
 - ページの `updated` タイムスタンプを、出典ファイルの更新時刻と比べる
 - ページが最後に更新された後で出典が変更されているページを指摘する
 
-### 5. Contradictions
+### 5. 矛盾
 
 ページ間で食い違う主張。
 
 **確かめ方:**
 - 関連するページを読んで主張を比べる必要がある
 - タグを共有しているページや、相互参照の多いページに絞る
-- "however", "in contrast", "despite" のような言い回しを探す。既に認識されて書かれている矛盾を、認識されていない矛盾と分ける手がかりになりうる
+- "however"・"in contrast"・"despite"、日本語なら「しかし」「ただし」「一方」「それに対して」「にもかかわらず」のような言い回しを探す。既に認識されて書かれている矛盾を、認識されていない矛盾と分ける手がかりになりうる
 
 **直し方:**
 - 矛盾を記す "Open Questions" 節を足す
 - 両方の出典とその主張を参照する
 
-### 6. Index Consistency
+### 6. index の整合
 
 `index.md` が実際のページ一覧と一致しているかを確かめる。
 
@@ -153,9 +153,9 @@ Check 7 と 11 には `--json` の形が要る。
 
 **直し方:** ページの `summary:` をエントリへ写す —— 逆向きには決してしない。summary が 200 字を超えているなら、先に summary を短くする（Check 3a）。
 
-指摘は `Index Issues` の節へ（見本の行は `references/output-format.md`）、その合計は `LINT` の log エントリの `index_issues=N` へ書く。
+指摘は `index の問題` の節へ（見本の行は `references/output-format.md`）、その合計は `LINT` の log エントリの `index_issues=N` へ書く。
 
-### 7. Provenance Drift
+### 7. provenance のドリフト
 
 ページが、内容のどれだけが inferred でどれだけが extracted かを正直に示しているかを確かめる。マーカーの規約（`^[extracted]` / `^[inferred]` / `^[ambiguous]` —— すべての主張がどれか 1 つを持つ）と、任意の `provenance:` frontmatter ブロックは `~/.claude/doc/doc_wiki_schema.md` で定義されている。
 
@@ -168,9 +168,9 @@ python3 ~/.claude/skills/wiki-lint/scripts/frontmatter_metrics.py "$OBSIDIAN_VAU
 JSON を出力する。`pages` の下の各エントリは `provenance` = `{extracted, inferred, ambiguous, n_markers, stored, drift_flag}` を持つ（ページにマーカーが無ければ `null`）。分母はマーカーの総数で、コードの中のマーカーは除く。同じ実行結果が Check 3a（`summary_over_limit`）・Check 6（`index`）・Check 8（`clusters`）・Rule 12e（`base_confidence`）にも使われるので、1 回だけ走らせる。
 
 - 次の閾値を当てはめる:
-  - **AMBIGUOUS > 15%**: "speculation-heavy"（推測が多い）として指摘する —— 主張の 7 件に 1 件が本当に不確かなだけでも、ページの出典をもっと固めるか、`synthesis/` へ移すべきだという合図だ
-  - **frontmatter に `sources:` が無く INFERRED > 40%**: "unsourced synthesis"（出典の無い統合）として指摘する —— ページはつながりを作っているが、引ける出典が何も無い
-  - INFERRED > 40% の**ハブページ**（incoming の上位 10 件 —— Check 0 のグラフから取り、導き直さない）: "high-traffic page with questionable provenance"（参照が多いのに provenance が怪しいページ）として指摘する —— ハブページの誤りは、そこへリンクするすべてのページへ広がる。上流（移植元）の 20% ではなく 40%: ページは主張の一部にしかマーカーを付けず、付いていない残りの大半は extracted なので、マーカー総数を分母にした割合は主張単位の割合のおよそ 2 倍になる。基準にした vault では、20% だとハブ 10 件中 9 件が指摘された。40% なら、付いていない主張を extracted として数えたときに 20% が指摘したのと同じ 2 件を指摘する
+  - **AMBIGUOUS > 15%**: 「推測が多い」（speculation-heavy）として指摘する —— 主張の 7 件に 1 件が本当に不確かなだけでも、ページの出典をもっと固めるか、`synthesis/` へ移すべきだという合図だ
+  - **frontmatter に `sources:` が無く INFERRED > 40%**: 「出典の無い統合」（unsourced synthesis）として指摘する —— ページはつながりを作っているが、引ける出典が何も無い
+  - INFERRED > 40% の**ハブページ**（incoming の上位 10 件 —— Check 0 のグラフから取り、導き直さない）: 「参照が多いのに provenance が怪しいページ」（high-traffic page with questionable provenance）として指摘する —— ハブページの誤りは、そこへリンクするすべてのページへ広がる。上流（移植元）の 20% ではなく 40%: ページは主張の一部にしかマーカーを付けず、付いていない残りの大半は extracted なので、マーカー総数を分母にした割合は主張単位の割合のおよそ 2 倍になる。基準にした vault では、20% だとハブ 10 件中 9 件が指摘された。40% なら、付いていない主張を extracted として数えたときに 20% が指摘したのと同じ 2 件を指摘する
   - **ドリフト**: `drift_flag` が true —— 保存された `provenance:` ブロックが、どれかのフィールドで再計算値から 0.20 を超えてずれている
 - `provenance:` frontmatter もマーカーも無いページは**飛ばす** —— 規約上、すべて extracted とみなす
 
@@ -180,7 +180,7 @@ JSON を出力する。`pages` の下の各エントリは `provenance` = `{extr
 - INFERRED > 40% のハブページ: 取り込み直しを優先する —— ここの誤りは影響範囲が最も広い
 - ドリフト: `provenance:` frontmatter を再計算値に合わせて更新する
 
-### 8. Fragmented Tag Clusters
+### 8. 断片化したタグクラスタ
 
 タグを共有するページが、実際に互いにリンクしているかを確かめる。タグは話題のまとまり（クラスタ）を示す。それらのページが互いを参照していなければクラスタは断片化している —— 編み合わせるべき知識の孤島である。
 
@@ -190,7 +190,7 @@ JSON を出力する。`pages` の下の各エントリは `provenance` = `{extr
 - クラスタを結束度のスコアとともに報告する。編み合わせるとはグループ内のページ間にリンクを足すことで —— それは本文への書き込みなので、慎重に行う: 各ページが既に使っている記法を使い、すべての組を相互リンクするのではなく、1 ページあたり数本のリンクを足す
 - タグのグループが大きく（n > 15）、それでも断片化しているなら、より具体的なサブタグへの分割を検討する
 
-### 8a. Over-Tagged and Malformed Tags
+### 8a. タグ過多と形式の崩れたタグ
 
 タグの規則は `~/.claude/doc/doc_wiki_schema.md` にある: **1 ページあたりタグは最大 5 個**、
 小文字、ハイフン区切り、できるだけ既存のタグを使い回す。`visibility/` タグは
@@ -210,7 +210,7 @@ JSON を出力する。`pages` の下の各エントリは `provenance` = `{extr
 **件数と最もひどいものだけを報告し、ページごとに 1 件ずつ報告しない。** ページ単位の
 指摘が何十件も並ぶと他の節がすべてレポートから押し出されるし、未処理分は
 この検査より前からある。節の中身は:
-- 件数と分布の 1 行（`27 pages over 5 tags — 26 at 6, 1 at 7`）
+- 件数と分布の 1 行（`27 ページがタグ 5 個超 — タグ 6 個が 26 ページ、7 個が 1 ページ`）
 - **タグ数の上位 5 件**を、ひどい順に 1 件 1 行で
 - 形式の崩れたタグの*名前*ごとに 1 行（ページごとではない）、それを持つページ数を添えて
 
@@ -224,12 +224,12 @@ lint はページ本文を読まないので、6 個目のタグを消すと、�
 vault 全体への書き込みだ。どちらも、ユーザーか、本文を文脈に入れてそのページを開く
 次の skill に向けて示す。
 
-指摘は `Over-Tagged and Malformed Tags` の節へ（見本の行は
+指摘は `タグ過多と形式の崩れたタグ` の節へ（見本の行は
 `references/output-format.md`）、その合計は `LINT` の log エントリの 2 つのキーへ書く:
 `over_tagged=N`（上限を超えたページ数）と `malformed_tags=N`（ページ数ではなく、
 異なるタグ名の数）。単位が 2 つだからキーも 2 つ —— 1 つにまとめると差分が読めなくなる。
 
-### 9. Visibility Tag Consistency
+### 9. visibility タグの整合
 
 `visibility/` タグが正しく付いているか、必要な場所で黙って欠けていないかを確かめる。
 
@@ -242,7 +242,7 @@ vault 全体への書き込みだ。どちらも、ユーザーか、本文を�
 - タグの無い PII のパターン: ページの frontmatter のタグに `visibility/pii` を足す（個人データではなくチーム内の文脈なら `visibility/internal`）
 - `sources:` の欠落: provenance を足すか、ユーザーへ上げる —— 自動で埋めない
 
-### 10. Misc Promotion Candidates (only when `misc/` exists)
+### 10. misc の昇格候補（`misc/` があるときだけ）
 
 **最初に `$OBSIDIAN_VAULT_PATH/misc/*.md` を Glob する。一致が無ければ、この検査を
 丸ごと飛ばす —— 指摘もレポートの節も出さない。** そこへページを置くのは URL 取り込みの経路だけなので、
@@ -257,7 +257,7 @@ vault 全体への書き込みだ。どちらも、ユーザーか、本文を�
 vault を grep して被リンクを見つけて更新する。wikilink を多く持つページで `affinity` が
 空なら、スコアは低いのではなく古い —— それを根拠に昇格させず、そう書く。
 
-### 11. Synthesis Gaps
+### 11. 統合の穴
 
 wiki に欠けている、価値の高い統合（synthesis）の機会を見つける —— 多くのページで共起しているのに、それらをつなぐ `synthesis/` ページが無い概念の組。
 
@@ -279,7 +279,7 @@ wiki に欠けている、価値の高い統合（synthesis）の機会を見つ
 書くことで —— 内容を文脈に入れての書き込みであり、lint はそれを持って
 いない。穴を塞ぐためだけにスタブのページを作らない。
 
-### 12. Confidence and Lifecycle Schema
+### 12. confidence と lifecycle のスキーマ
 
 confidence と lifecycle の frontmatter スキーマを守らせる。**許される値の集合、各値がどの段に位置するか、段の決め方の唯一の典拠はルーブリックである: `~/.claude/doc/doc_wiki_lifecycle_rubric.md`。** 許される値の集合や段の割り当てを、このファイルにも他のどの skill にも決して写さない。値の名前ではなく段で指す。
 
@@ -287,7 +287,7 @@ confidence と lifecycle の frontmatter スキーマを守らせる。**許さ�
 - **`--check`**（既定・読み取りのみ）—— エラーと警告を報告する
 - **`--fix`** —— ドリフトを検出したときに限り `base_confidence` を書き換えてよい（Rule 12e）。`lifecycle` は決して書き換えない
 
-#### Rule 12a — `lifecycle` enum validation
+#### Rule 12a — `lifecycle` の enum の検証
 
 **確かめ方:** 全ページの frontmatter を `^lifecycle:` で grep し、値を取り出し、ルーブリックにある許される値の集合と**集合として**比べる。
 
@@ -301,13 +301,13 @@ confidence と lifecycle の frontmatter スキーマを守らせる。**許さ�
 
 **直し方:** n/a —— `--fix` は `lifecycle` を決して書かない: 段はページ本文の証拠で決まり（ルーブリックの R1–R4）、lint は本文を読まない。それを設定してよいのは、本文を文脈に持っている skill だけだ。
 
-#### Rule 12b — `base_confidence` range
+#### Rule 12b — `base_confidence` の範囲
 
 **確かめ方:** 全ページの frontmatter を `^base_confidence:` で grep する。`[0.0, 1.0]` の外にある値と、このフィールドがまったく無いページを指摘する。
 
 **直し方:** n/a（値が誤っているのは skill の計算が誤っていたということ —— 手で直すよう示す）
 
-#### Rule 12c — Stale page report (computed overlay)
+#### Rule 12c — 陳腐化したページの報告（計算上のオーバーレイ）
 
 陳腐化は決して保存しない —— 読むときに `evidence_at` から計算する（ページに `evidence_at` が無ければ `updated:` へ落ちる）: `is_stale = (today − date) > 90 days`。
 
@@ -323,7 +323,7 @@ confidence と lifecycle の frontmatter スキーマを守らせる。**許さ�
 
 **直し方:** `--fix` は `lifecycle` を書き換え**ない**。陳腐化は、再確認で `evidence_at` が更新されたときに解消する。
 
-#### Rule 12d — Supersession integrity
+#### Rule 12d — 置き換え（`superseded_by`）の整合
 
 **確かめ方:** `superseded_by: "[[target]]"` を持つ各ページについて:
 - 指す先のページが存在することを確かめる
@@ -333,13 +333,13 @@ confidence と lifecycle の frontmatter スキーマを守らせる。**許さ�
 
 **直し方:** n/a —— 人間が解決するよう指摘する
 
-#### Rule 12e — Confidence drift
+#### Rule 12e — confidence のドリフト
 
 **確かめ方:** Check 7 のスクリプトの実行結果から `base_confidence` を読む（ページが `base_confidence:` と `sources:` の両方を持たなければ `null`）。各エントリは `stored`、`recomputed`、`drift`、`drift_flag`（|drift| > 0.05）、そして `sources` —— 各行が `~/.claude/doc/doc_wiki_schema.md` の既定に従ってどの `source_id` とバケットへまとめられたか —— を持つ。指摘する前に、指摘するページの `sources` を読む: ある出典に対してバケットが明らかに誤っているとき（ベンダーの doc が `unknown` に分類されている等）は、数字を受け入れず `--bucket <source_id>=<bucket>` を付けて走らせ直す。
 
 **直し方（`--fix` のときだけ）:** `--fix-confidence` を付けてスクリプトを走らせ直す（同じ `--bucket` の上書きも付ける）。ドリフトしたページの `base_confidence:` の行だけを書き換える。frontmatter を自動で書き換えるのは、これが**唯一のルール**だ。
 
-#### Rule 12f — Evidence requirements for ranked pages
+#### Rule 12f — 序列内のページの証拠要件
 
 段は、ある行為がなされたことを主張する（ルーブリック: *この軸は自己評価の信頼度ではなく、行為を記録する*）。このルールは、ページがその行為への手がかりをまだ持っているかを確かめる。**このルールが無ければ、はしごは散文でしかない** —— そして検査の無い散文はずれていく。
 
@@ -357,14 +357,14 @@ rank 1 と序列外の集合全体は飛ばす（ルーブリックの §序列�
 
 **直し方:** n/a —— 本文を文脈に持ってそのページに触れる次の skill に向けて示す。
 
-Rule 12a–12f の指摘は `Confidence/Lifecycle Issues` の節へ（見本の行は `references/output-format.md`）、その合計は `LINT` の log エントリの `lifecycle_issues=N` へ書く。
+Rule 12a–12f の指摘は `confidence / lifecycle の問題` の節へ（見本の行は `references/output-format.md`）、その合計は `LINT` の log エントリの `lifecycle_issues=N` へ書く。
 
-### 13. Typed Relationships Validity
+### 13. 型付きの関係の妥当性
 
 `relationships:` frontmatter ブロックを検証する。`relationships:` ブロックの無いページは飛ばす —— このフィールドは任意だ。
 
 **許される型:** 唯一の正典は **`~/.claude/doc/doc_wiki_schema.md` の
-Typed Relationships の表**だ —— 10 の概念・16 の綴り。向きのある型は
+型付きの関係の表**だ —— 10 の概念・16 の綴り。向きのある型は
 順方向と逆方向の両方の綴りで有効。検査する前にその表を読む。
 その集合をこのファイルへ決して写さない。
 
@@ -408,16 +408,16 @@ wiki-lint である** —— schema doc は意図して写しを持たず、こ�
 - 別名の型: 上の表に従って正規化する
 - `type: superseded_by` / `type: replaced_by`: 関係の型ではない —— そのページは
   `lifecycle: archived` にし、**最上位の** `superseded_by:` フィールドを持たせるべきだ（別の名前空間。
-  schema doc の Confidence and Lifecycle の節を参照）。その案内を添えて報告する
+  schema doc の confidence と lifecycle の節を参照）。その案内を添えて報告する
 - 未知の型: そのまま残して報告する。enum を広げるのは schema の判断だ
 - リンク切れの target: エントリを更新するか消す。target のページが存在すべきなら、先にそれを作る
 - 自己参照: エントリを消す
 
-指摘は `Typed Relationship Issues` の節へ（見本の行は `references/output-format.md`）、その合計は `LINT` の log エントリの `relationship_issues=N` へ書く。
+指摘は `型付きの関係の問題` の節へ（見本の行は `references/output-format.md`）、その合計は `LINT` の log エントリの `relationship_issues=N` へ書く。
 
 ## 出力形式
 
-指摘は `## Wiki Health Report` として書き、検査ごとに `###` の節を 1 つずつ、検査の
+指摘は `## Wiki 健全性レポート` として書き、検査ごとに `###` の節を 1 つずつ、検査の
 順に並べる。**雛形と、すべての節の見本の行は
 `references/output-format.md` にある —— レイアウトを作り出さず、それに従う**。何も見つからなかった検査の
 節は省く。
@@ -453,6 +453,6 @@ wiki-lint である** —— schema doc は意図して写しを持たず、こ�
 
 そこにあるルールのうち、そもそも書いてよいかを決める 3 つ:
 
-- **必ず、まず dry-run。** 予定しているすべてのアクションを出力し、それから `"Apply these N changes? [yes / no / select by number]"` と尋ねる。明示的な答えの前には、どのページも書かない。
+- **必ず、まず dry-run。** 予定しているすべてのアクションを出力し、それから `"この N 件の変更を適用しますか？ [yes / no / 番号で選ぶ]"` と尋ねる。明示的な答えの前には、どのページも書かない。
 - 確認の要らない書き込みは、最後の `log.md` への 1 回の追記だけだ。
 - ページを決してマージしない（それは `wiki-dedup` の仕事）。`lifecycle` も決して書かない —— consolidate はページ本文を読まないので、何かを段づけする根拠を持たない。

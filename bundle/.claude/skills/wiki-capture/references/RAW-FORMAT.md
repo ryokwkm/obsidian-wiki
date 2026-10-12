@@ -84,7 +84,7 @@ sources:
 `base_confidence` と `provenance` の配分は、下の表で決める。
 
 **適用範囲: `_raw/` のステージングだけ** —— `wiki-lint` は `_` で始まるディレクトリを決して走査しない。`/wiki-ingest` が
-ファイルを昇格させるとき、schema doc の Confidence formula から `base_confidence` を計算し直す。**この表の数字を
+ファイルを昇格させるとき、schema doc の confidence の式から `base_confidence` を計算し直す。**この表の数字を
 昇格したページへ決して持ち込まない**（Rule 12e がドリフトとして報告し、`--fix` が上書きする）。
 
 | 証拠の強さ | `extracted` | `inferred` | `base_confidence` |

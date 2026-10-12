@@ -15,7 +15,7 @@ description: あらゆるソース（文書・PDF・記事・フォルダ・チ�
 4. `index.md` をソースの主要な概念で grep し、既に何があるかを見る。丸ごと読むのは grep が空だったときだけ
 5. `log.md` の末尾を読み、最近の動きをつかむ —— `grep '^- \[' "$OBSIDIAN_VAULT_PATH/log.md" | tail -30`。**`log.md` を決して丸ごと読まない**: 追記専用で上限が無い（活発な vault では 100 kB 超 ≒ 25k トークン）。素の `tail` ではなくエントリの行を grep する —— ファイルには空行が混ざるので、素の `tail -N` では N 件より少ないエントリしか返らない。
 
-Step 5 で内部リンクを書くときは、読んだ `OBSIDIAN_LINK_FORMAT` の値に応じて `~/.claude/doc/doc_wiki_schema.md`（Link Format）のリンク形式を使う。
+Step 5 で内部リンクを書くときは、読んだ `OBSIDIAN_LINK_FORMAT` の値に応じて `~/.claude/doc/doc_wiki_schema.md` の「リンク形式」の節の規則で書く。
 
 ## コンテンツの信頼境界
 
@@ -53,7 +53,7 @@ manifest の状態にかかわらずすべてを取り込む。使うのは:
 
 ### raw モード
 vault の中の `_raw/` ステージングディレクトリにある下書きのページを処理する。使うのは:
-- ユーザーが "process my drafts"・"promote my raw pages" と言ったとき、または `_raw/` へファイルを置いたとき
+- ユーザーが "process my drafts"・"promote my raw pages"・「下書きを処理して」「raw のページを昇格して」「_raw を本ページにして」と言ったとき、または `_raw/` へファイルを置いたとき
 - 構造を気にせず手早くメモを取った、貼り付けの多いセッションの後
 
 raw モードでは、`OBSIDIAN_VAULT_PATH/_raw/`（または `OBSIDIAN_RAW_DIR`）の各ファイルをソースとして扱う。ファイルをきちんとした wiki ページへ昇格させたら、元のファイルを削除せず **`_raw/_archived/` へ移す**（ファイル名は同じまま。ディレクトリが無ければ作る）。昇格済みのファイルを `_raw/` の最上位に決して残さない —— 次の実行で二重に処理される。`_raw/_archived/` へ移せば、元の下書きを保ったままその走査から外れる。
@@ -119,7 +119,7 @@ URL は対象外（URL から書いたページが vault の記録になる）�
 
 ### Web URL のソース
 
-ソースが **Web URL**（`/ingest-url <url>`、"add this URL"、"ingest this link"、"save this page"、または貼られたリンク）のときは、流れが違う: 現在のプロジェクトを検出し、`defuddle` / `WebFetch` で取得し、検出したプロジェクトの `references/` フォルダへページを置くか、後で昇格させるための affinity のスコア付きで `misc/` へ落とす。**`references/url-sources.md` を読んで従う** —— プロジェクトの検出・きれいな抽出・重複の排除・スラッグの生成・プロジェクトと misc での frontmatter の違い・affinity のスコア付け・取得失敗時のスタブの扱い・`INGEST_URL` の log / manifest の書式を扱っている。この skill の残り（設定・信頼境界）は引き続き当てはまる。
+ソースが **Web URL**（`/ingest-url <url>`、"add this URL"、"ingest this link"、"save this page"、「この URL を追加して」「このリンクを取り込んで」「このページを保存して」、または貼られたリンク）のときは、流れが違う: 現在のプロジェクトを検出し、`defuddle` / `WebFetch` で取得し、検出したプロジェクトの `references/` フォルダへページを置くか、後で昇格させるための affinity のスコア付きで `misc/` へ落とす。**`references/url-sources.md` を読んで従う** —— プロジェクトの検出・きれいな抽出・重複の排除・スラッグの生成・プロジェクトと misc での frontmatter の違い・affinity のスコア付け・取得失敗時のスタブの扱い・`INGEST_URL` の log / manifest の書式を扱っている。この skill の残り（設定・信頼境界）は引き続き当てはまる。
 
 ### マルチモーダルの分岐（画像）
 
@@ -219,7 +219,7 @@ QMD の結果で 3 本以上の論文が同じ概念に触れているなら、�
 - 自分のページに値するか、既存のページに載せるべき**主要な概念**
 - 言及されている**エンティティ**（人物・ツール・プロジェクト・組織）
 - ソースに帰属させられる**主張**
-- 概念の間の**関係** —— ソースの文から明らかなときは*型*を書き留める。使う型は `~/.claude/doc/doc_wiki_schema.md` の Typed Relationships の表で定義されたものだけ。記録するのは: 元のページ・先のページ・推し量った型。
+- 概念の間の**関係** —— ソースの文から明らかなときは*型*を書き留める。使う型は `~/.claude/doc/doc_wiki_schema.md` の型付きの関係の表で定義されたものだけ。記録するのは: 元のページ・先のページ・推し量った型。
 - ソースが提起しているが答えていない**未解決の問い**
 
 **進めながら主張ごとに provenance を追う。** 抽出した主張それぞれに、頭の中で次の印を付ける:
@@ -246,7 +246,7 @@ QMD の結果で 3 本以上の論文が同じ概念に触れているなら、�
 - 新規なら、どのカテゴリに属するか？
 - どの `[[wikilinks]]` で既存のページとつなぐべきか？
 
-**既存のページには tier を踏まえた絞り込みを適用する**（`~/.claude/doc/doc_wiki_schema.md` の Importance Tiering を参照）:
+**既存のページには tier を踏まえた絞り込みを適用する**（`~/.claude/doc/doc_wiki_schema.md` の重要度の tier を参照）:
 
 | tier | 更新の判断 |
 |---|---|
@@ -301,7 +301,7 @@ QMD の結果で 3 本以上の論文が同じ概念に触れているなら、�
 - 新しいソースを `sources` の一覧に足す
 - 古い情報と新しい情報の矛盾を解消する（解消できなければ書き留める）
 
-**文脈が明らかなときは `relationships:` を埋める** —— Step 2 でこのページと別のページの間に型付きの関係を見つけたなら、frontmatter に `relationships:` ブロックを足す（定義は `~/.claude/doc/doc_wiki_schema.md` の Typed Relationships）。足すのは、ソースの文から向きと型が曖昧でないエントリだけ。迷ったら `related_to` を使うか、ブロックを省く。例:
+**文脈が明らかなときは `relationships:` を埋める** —— Step 2 でこのページと別のページの間に型付きの関係を見つけたなら、frontmatter に `relationships:` ブロックを足す（定義は `~/.claude/doc/doc_wiki_schema.md` の型付きの関係）。足すのは、ソースの文から向きと型が曖昧でないエントリだけ。迷ったら `related_to` を使うか、ブロックを省く。例:
 
 ```yaml
 relationships:
@@ -322,10 +322,10 @@ lifecycle: draft                # 下限。本文がページの主張の証拠�
                                 # `lifecycle_evidence` と `evidence_at` を足す。近いページの
                                 # 段を写さない。
 lifecycle_changed: "<ISO date today>"
-tier: supporting                # 新しいページの既定（schema doc の Importance Tiering）
+tier: supporting                # 新しいページの既定（schema doc の重要度の tier）
 ```
 
-`base_confidence` は `~/.claude/doc/doc_wiki_schema.md`（Confidence and Lifecycle）の式で計算する —— 品質のバケットと `source_id` の規則はそこにある:
+`base_confidence` は `~/.claude/doc/doc_wiki_schema.md`（confidence と lifecycle）の式で計算する —— 品質のバケットと `source_id` の規則はそこにある:
 - このページの別個の source_id を数える
 - 各ソースの品質のバケットを、その doc のバケットの既定に従って分類する
 - `base_confidence = min(N/3, 1.0) × 0.5 + avg_quality × 0.5`
@@ -341,7 +341,7 @@ tier: supporting                # 新しいページの既定（schema doc の I
 
 `visibility/` タグはシステムタグで、5 個のタグ上限に**数えない**。迷ったら付けない —— タグの無いページは公開として扱われる。話題が技術的に聞こえるというだけで visibility タグを決して付けない。
 
-`~/.claude/doc/doc_wiki_schema.md`（Provenance Markers）の規約に従って **provenance マーカーを付ける**:
+`~/.claude/doc/doc_wiki_schema.md`（provenance マーカー）の規約に従って **provenance マーカーを付ける**:
 - Extracted の主張には末尾に `^[extracted]` を付ける
 - Inferred の主張には末尾に `^[inferred]` を付ける
 - Ambiguous・異論のある主張には末尾に `^[ambiguous]` を付ける
@@ -387,11 +387,11 @@ manifest がまだ無ければ、`version: 1` で作る。
 `[TIMESTAMP]` は `date -u +%Y-%m-%dT%H:%M:%SZ` の出力 —— 実行して結果をそのまま貼る。手で書かない（理由: schema doc の `log.md`）。
 
 **`hot.md`** — `$OBSIDIAN_VAULT_PATH/hot.md` を読む（無ければ
-`~/.claude/doc/doc_wiki_schema.md` の雛形（Special Files → `hot.md`）どおりに作る —— 教訓の節は意図的に置いていない）。
+`~/.claude/doc/doc_wiki_schema.md` の雛形（特殊ファイル → `hot.md`）どおりに作る —— 教訓の節は意図的に置いていない）。
 
 **`hot.md` はキャッシュであり、共有されている。** 作業中にも他のセッションが書き込むので、**変更は
 変更箇所を覆う最小範囲への `Edit` だけで 1 行ずつ行い、ファイルを決して `Write` で書き
-戻さない**（理由: schema doc の Special Files）。
+戻さない**（理由: schema doc の特殊ファイル）。
 
 - **Recent Activity** —— この取り込みについて 1 行、新しい順。1 回の `Edit` で先頭に入れる。節が既に 3 件を持っていれば、最も古い行を**別の** `Edit` で消す（両方を一度にやると、節全体を `old_string` に入れることになる）。
 - **Active Threads** —— この取り込みが属するスレッドについて 1 行、最大 3 件、1 行ごとに `Edit` 1 回。もう動いていないスレッドは、新しいものと並べて残さず、その行を消して落とす。**この節がファイルに無ければ、無いままにする** —— 足さない。

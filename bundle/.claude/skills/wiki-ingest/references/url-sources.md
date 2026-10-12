@@ -171,7 +171,7 @@ lifecycle: draft                # 下限 —— URL の取り込みが `sourced`
                                 # 取得日の両方を記録したときだけ。そうでなければここに留まる
                                 # (~/.claude/doc/doc_wiki_lifecycle_rubric.md)
 lifecycle_changed: "<ISO date today>"
-tier: supporting                # 新しいページの既定（schema doc の Importance Tiering）
+tier: supporting                # 新しいページの既定（schema doc の重要度の tier）
 ---
 ```
 
@@ -197,7 +197,7 @@ provenance:
 base_confidence: <computed — see below>
 lifecycle: draft                # 上のプロジェクトモードの frontmatter と同じ規則
 lifecycle_changed: "<ISO date today>"
-tier: supporting                # 新しいページの既定（schema doc の Importance Tiering）
+tier: supporting                # 新しいページの既定（schema doc の重要度の tier）
 ---
 ```
 
@@ -303,7 +303,7 @@ misc モード:
 
 `[TIMESTAMP]` は `date -u +%Y-%m-%dT%H:%M:%SZ` の出力 —— 実行して結果をそのまま貼る。手で書かない（理由: schema doc の `log.md`）。
 
-**`hot.md`** —— いま取り込んだものについて **Recent Activity** の下へ 1 行を `Edit` で入れる。新しい順で、直近 3 件の操作だけ。1 回の `Edit` で先頭に入れ、節が既に埋まっていれば、最も古い行を**別の** `Edit` で消す。**変更は `Edit` だけで 1 行ずつ行い、ファイルを `Write` で書き戻さない**（理由: schema doc の Special Files）。**概念そのものはここに書かない** —— それはいま書いたページに置く。`updated` タイムスタンプは別の `Edit` で更新する。
+**`hot.md`** —— いま取り込んだものについて **Recent Activity** の下へ 1 行を `Edit` で入れる。新しい順で、直近 3 件の操作だけ。1 回の `Edit` で先頭に入れ、節が既に埋まっていれば、最も古い行を**別の** `Edit` で消す。**変更は `Edit` だけで 1 行ずつ行い、ファイルを `Write` で書き戻さない**（理由: schema doc の特殊ファイル）。**概念そのものはここに書かない** —— それはいま書いたページに置く。`updated` タイムスタンプは別の `Edit` で更新する。
 
 ## Quality Checklist (URL sources)
 

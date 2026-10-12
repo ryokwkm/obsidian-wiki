@@ -11,24 +11,24 @@ description: コンパイル済みの Obsidian wiki を検索し、ページか�
 
 `wiki-query` は質問に答え、wiki の中身は変えない: 唯一の書き込みは Step 6 の `log.md` への追記だけ。ページ・`index.md`・`hot.md`・`_insights.md`・`.manifest.json` は、変更が役立ちそうに見えても触らない。これらのファイルの不変条件は書き手の skill が受け持っているからだ。
 
-ユーザーのメッセージに新しい知見、行動の依頼（"save this"・"ban X"・"record that"）、その他の変更を含意するものが入っていても、**実行しない。** 質問に答え、変更は提案だけにとどめ、ユーザーを適切な skill へ案内する:
+ユーザーのメッセージに新しい知見、行動の依頼（"save this"・"ban X"・"record that"、「これを保存して」「X を禁止して」「〜と記録して」）、その他の変更を含意するものが入っていても、**実行しない。** 質問に答え、変更は提案だけにとどめ、ユーザーを適切な skill へ案内する:
 - 短いメモ・落とし穴 → `wiki-capture --quick`
 - 新しいページを丸ごと 1 枚 → `wiki-capture`
 - プロジェクトの知識の同期 → `wiki-update`
 
 ## 着手前に
 
-1. **設定を解決する。** `$OBSIDIAN_VAULT_PATH` が既に export されていればそれを使う（shell rc / direnv / 親プロセス）—— それが優先する。未設定なら CWD から `$HOME` まで遡って `OBSIDIAN_VAULT_PATH=` を含む最初の `.env` を探し、その値を使う。どちらからもパスが得られなければ止まり、ユーザーに伝える: `No vault config found. Set OBSIDIAN_VAULT_PATH in .claude/settings.json (env), a shell rc, or direnv.` vault のパスを決め打ちせず、他のプロジェクトの vault を決して借りない。どのプロジェクトのディレクトリからでも動く。
+1. **設定を解決する。** `$OBSIDIAN_VAULT_PATH` が既に export されていればそれを使う（shell rc / direnv / 親プロセス）—— それが優先する。未設定なら CWD から `$HOME` まで遡って `OBSIDIAN_VAULT_PATH=` を含む最初の `.env` を探し、その値を使う。どちらからもパスが得られなければ止まり、ユーザーに伝える: `vault の設定が見つかりません。OBSIDIAN_VAULT_PATH を .claude/settings.json（env）・shell rc・direnv のいずれかで設定してください。` vault のパスを決め打ちせず、他のプロジェクトの vault を決して借りない。どのプロジェクトのディレクトリからでも動く。
 2. **同じ設定から QMD の変数を読む** —— `QMD_WIKI_COLLECTION`・`QMD_TRANSPORT`・`QMD_CLI_SEARCH_MODE`・`QMD_PAPERS_COLLECTION`・`QMD_EXTRA_COLLECTIONS` を、検索の戦略を決める前に読む。`QMD_WIKI_COLLECTION` が設定されていれば、Step 2b の transport の確認だけを条件として、QMD を使えるものとして扱う。空か未設定なら、QMD を飛ばす理由を短く述べて grep の経路を取る。grep の経路でも十分に機能する。
 3. **まだ vault からは何も読まない。** まず質問を分類し（Step 1）、それからはしごを安い端から登る（Step 2 以降）。特に次の 2 つのファイルはただでは読めず、反射的に開いてはならない:
-   - **育った vault では `index.md` は数十 KB になる。** 質問の語で grep する（Step 2）。丸ごと読むのは、質問が wiki の*形*についてのとき —— "what's in here"、"what areas do I cover" —— だけ。
+   - **育った vault では `index.md` は数十 KB になる。** 質問の語で grep する（Step 2）。丸ごと読むのは、質問が wiki の*形*についてのとき —— "what's in here"、"what areas do I cover"、「何が入ってる」「どんな領域をカバーしてる」 —— だけ。
    - **`hot.md` には蒸留した知識が無い。** 直近の数回の操作と進行中のスレッドのキャッシュなので、*話題*についての質問ではバイトを食うだけで何も答えない。はしごの最初ではなく最後の段だ —— Step 4c を参照。
 
 ## 可視性フィルタ（任意）
 
 既定では、可視性タグにかかわらず**すべてのページを返す**。これは既存の挙動を保つ —— ユーザーが求めない限り何も変わらない。
 
-ユーザーの質問に **"public only"**・**"user-facing"**・**"no internal content"**・**"as a user would see it"**・**"exclude internal"** のような言い回しが含まれていれば、**フィルタモード**を有効にする:
+ユーザーの質問に **"public only"**・**"user-facing"**・**"no internal content"**・**"as a user would see it"**・**"exclude internal"**・**「公開分だけ」**・**「ユーザーに見える範囲で」**・**「内部の内容は除いて」**・**「社外向けに」** のような言い回しが含まれていれば、**フィルタモード**を有効にする:
 
 - **遮断タグの集合**を作る: `{visibility/internal, visibility/pii}`
 - 「index で絞る」（Step 2）では、frontmatter のタグに遮断タグを含む候補を飛ばす
@@ -41,7 +41,7 @@ description: コンパイル済みの Obsidian wiki を検索し、ページか�
 
 ## 検索の手順
 
-vault を読むことがこの skill のコストの大半を占める。**質問に答えられる最も安いプリミティブを使い、それで答えられないときだけ一段上げる** —— プリミティブそのもののコスト表は `~/.claude/doc/doc_wiki_schema.md` の「Retrieval Primitives」の節にある。下の Step は、その表を質問への回答に当てはめたもので、安い段から並べてある:
+vault を読むことがこの skill のコストの大半を占める。**質問に答えられる最も安いプリミティブを使い、それで答えられないときだけ一段上げる** —— プリミティブそのもののコスト表は `~/.claude/doc/doc_wiki_schema.md` の「読み取りプリミティブ」の節にある。下の Step は、その表を質問への回答に当てはめたもので、安い段から並べてある:
 
 > `index.md` のエントリ（grep）→ ページの `summary:` frontmatter → grep した節（`-A`/`-B`）→ ページ全体の読み込み → `hot.md`
 
@@ -50,14 +50,14 @@ vault を読むことがこの skill のコストの大半を占める。**質�
 ### Step 1: 質問を把握する
 
 質問の種類を分類する:
-- **事実の確認** —— "What is X?" → 関係するページを探す
-- **関係の質問** —— "How does X relate to Y?" / "What contradicts X?" → 両方のページ、その相互参照、型付きの辺を持つ `relationships:` frontmatter ブロックを探す
-- **経路・マルチホップの質問** —— "How is X connected to Y?" / "What links X to Y?" / "Trace the chain from X to Z" / "What does X depend on transitively?" → X と Y は直接リンクしておらず、つながりは中間のページを通る。Step 4b のマルチホップのグラフ走査を使う。
-- **統合の質問** —— "What's the current thinking on X?" → X に触れるページをすべて探し、統合する
-- **欠落の質問** —— "What don't I know about X?" → 欠けているものを探し、open questions の節を確かめる
+- **事実の確認** —— "What is X?"・「X とは何？」 → 関係するページを探す
+- **関係の質問** —— "How does X relate to Y?" / "What contradicts X?"・「X と Y はどう関係する？」「X と矛盾するものは？」 → 両方のページ、その相互参照、型付きの辺を持つ `relationships:` frontmatter ブロックを探す
+- **経路・マルチホップの質問** —— "How is X connected to Y?" / "What links X to Y?" / "Trace the chain from X to Z" / "What does X depend on transitively?"・「X と Y はどう繋がってる？」「X と Y を結ぶものは？」「X から Z までの鎖を辿って」「X は推移的に何に依存している？」 → X と Y は直接リンクしておらず、つながりは中間のページを通る。Step 4b のマルチホップのグラフ走査を使う。
+- **統合の質問** —— "What's the current thinking on X?"・「X について今どう考えられている？」 → X に触れるページをすべて探し、統合する
+- **欠落の質問** —— "What don't I know about X?"・「X について何が分かっていない？」 → 欠けているものを探し、open questions の節を確かめる
 
 **モード**も決める:
-- **index-only モード** —— "quick answer"・"just scan"・"don't read the pages"・"fast lookup" で発動する。Step 2 の後で止まる。frontmatter と `index.md` のエントリだけから答える。
+- **index-only モード** —— "quick answer"・"just scan"・"don't read the pages"・"fast lookup"、または「ざっと答えて」「index だけ見て」「ページは読まずに」「さっと調べて」で発動する。Step 2 の後で止まる。frontmatter と `index.md` のエントリだけから答える。
 - **通常モード** —— 下の段階的なパイプライン全体。
 
 ### Step 2: index で絞る（安い）
@@ -167,7 +167,7 @@ Step 2 と 3 で質問に答えられないときだけ:
 - 上位 **3** 件の候補を `Read` で全文読む。どの 3 件を読むかを選ぶときは、同順位の決め手として tier の順で優先する: `tier: core` のページを先に読み、明示された `tier: peripheral` は唯一の一致でない限り最後に回す。タグの無いページは `supporting` として競う —— フィールドが無いからといって決して見送らない（Step 2 を参照）。
 - 答えに相互参照が要るなら、それらのページから `[[wikilinks]]` を最大 1 ホップだけ辿る。
 - **候補の `sources:` が `_source_docs/` を指していて**、質問が蒸留で落ちるもの —— 正確な引用・数値・参考文献 —— を要するときは、そのファイルを `Read` する。それは vault が持つ原本の逐語コピーで、意図して検索インデックスから外してあるので、このホップが唯一の到達手段だ。両者が食い違うときは蒸留したページを優先する: 蒸留が原本を訂正しているかもしれない。
-- **関係の質問では**（"How does X relate to Y?" / "What contradicts X?"）: 候補ページの `relationships:` frontmatter ブロックも読む。各エントリは型付きで向きのある辺を与える —— 正規の型の集合は **`~/.claude/doc/doc_wiki_schema.md` の Typed Relationships の表**にある（10 の概念・16 の綴り。向きのある型には順方向と逆方向の両方の綴りがある）。記憶にある一覧で作業しない。回答ではこれらを明示的に示す —— 「ページ A *contradicts* ページ B（型付きの辺）」のほうが「ページ A はページ B にリンクしている」より役に立つ。
+- **関係の質問では**（"How does X relate to Y?" / "What contradicts X?"）: 候補ページの `relationships:` frontmatter ブロックも読む。各エントリは型付きで向きのある辺を与える —— 正規の型の集合は **`~/.claude/doc/doc_wiki_schema.md` の型付きの関係の表**にある（10 の概念・16 の綴り。向きのある型には順方向と逆方向の両方の綴りがある）。記憶にある一覧で作業しない。回答ではこれらを明示的に示す —— 「ページ A *contradicts* ページ B（型付きの辺）」のほうが「ページ A はページ B にリンクしている」より役に立つ。
 - 既知の欠落について "Open Questions" の節を確かめる。
 - それでも足りなければ、**そのときに初めて** vault 全体への広い本文 grep へ落ちる。上の段へ進んだことをユーザーに伝える —— これは高くつく経路で、ユーザーは知っておくべきだ。
 
@@ -177,12 +177,12 @@ Step 2 と 3 で質問に答えられないときだけ:
 
 この Step は経路・マルチホップの質問のとき（または関係の質問で 2 ページの間に直接の辺が返らないとき）**だけ**走らせる。すべて frontmatter から組み立てる —— ここではページ本文を決して読まない。
 
-1. **型付きの辺の隣接リストを作る（安い）。** すべてのページの `relationships:` ブロックを 1 回で grep する —— `Grep -A 20 "^relationships:" <vault>/**/*.md`（frontmatter だけ）。各エントリから、向きと型を持つ辺 `source —type→ target` が 1 本得られる。逆方向も辿れる辺として加える（`(reverse)` と印を付ける）。型付きの主張には向きがあっても、「つながっている」は対称だからだ。向きのある型は公式に両方の綴り（順方向と逆方向 —— `~/.claude/doc/doc_wiki_schema.md` の Typed Relationships の表を参照）で存在するので、辺を型で絞るとき、または回答の根拠を型に置くときは、2 つの綴りを 1 つの概念として扱う: `uses` で絞るなら、source と target を入れ替えた `used_by` の辺にも一致させなければならない。片方の綴りだけで絞ると、一致する辺の半分が黙って落ちる。本文の普通の `[[wikilinks]]` は、経路を完成させるのに必要な場合に限り、型の無い `related_to` の辺として数える —— まず型付きの辺を優先する。
+1. **型付きの辺の隣接リストを作る（安い）。** すべてのページの `relationships:` ブロックを 1 回で grep する —— `Grep -A 20 "^relationships:" <vault>/**/*.md`（frontmatter だけ）。各エントリから、向きと型を持つ辺 `source —type→ target` が 1 本得られる。逆方向も辿れる辺として加える（`(reverse)` と印を付ける）。型付きの主張には向きがあっても、「つながっている」は対称だからだ。向きのある型は公式に両方の綴り（順方向と逆方向 —— `~/.claude/doc/doc_wiki_schema.md` の型付きの関係の表を参照）で存在するので、辺を型で絞るとき、または回答の根拠を型に置くときは、2 つの綴りを 1 つの概念として扱う: `uses` で絞るなら、source と target を入れ替えた `used_by` の辺にも一致させなければならない。片方の綴りだけで絞ると、一致する辺の半分が黙って落ちる。本文の普通の `[[wikilinks]]` は、経路を完成させるのに必要な場合に限り、型の無い `related_to` の辺として数える —— まず型付きの辺を優先する。
 
 2. **端点を特定する。** X（質問が 2 つ挙げていれば Y も）を、Step 2 で作った候補の集合を使ってページのパスへ解決する。端点があいまいなら、tier の最も高い候補を選び —— タグの無いページも Step 2 のとおり競う —— その仮定を書き留める。
 
 3. **範囲を限った BFS。** X から隣接リストをたどって外へ広げる:
-   - **最大深さは既定で 3 ホップ**（それを超えるつながりに意味があることはまれ）。ユーザーが "deep" / "however many hops it takes" と言ったときだけ 4 に上げる。
+   - **最大深さは既定で 3 ホップ**（それを超えるつながりに意味があることはまれ）。ユーザーが "deep" / "however many hops it takes"、「深く」「何ホップでも」と言ったときだけ 4 に上げる。
    - **フロンティアの上限:** 訪問済みの集合が約 60 ページを超えたら、ノードの展開をやめる —— vault 全体へ広げず、途中までの結果を報告する。
    - **端点が 2 つの質問**（X→Y）では: 最短経路が見つかった時点で止め、そのあと少しだけ続けて、別の経路があれば最大 2 本まで示す。
    - **端点が 1 つの質問**（X から推移的に）では: 深さの上限内で到達できるすべてのノードを、ホップ数ごとにまとめて集める。
@@ -201,7 +201,7 @@ Step 2 と 3 で質問に答えられないときだけ:
 
 `hot.md` は、中身が蒸留ではなく*運用上の*ものである唯一の vault のファイルだ: 直近の数回の操作と、進行中のスレッド。読むのはちょうど次の 2 つの場合だけ:
 
-1. 質問が明示的に最近のことを尋ねている —— "what did I just work on"、"what changed"、"where did I leave off"。このときは `hot.md` を*最初に*読む。それを記録している唯一のファイルだからだ。
+1. 質問が明示的に最近のことを尋ねている —— "what did I just work on"、"what changed"、"where did I leave off"、「さっき何をやってた」「何が変わった」「どこまでやった」。このときは `hot.md` を*最初に*読む。それを記録している唯一のファイルだからだ。
 2. 上のどの段も失敗し、質問が進行中の作業（ページへ蒸留されるにはまだ新しすぎるもの）に関わっていそうに聞こえる。
 
 *話題*についての質問では飛ばす。たまたまその話題に触れていても、中身はそれが指すページにある —— リンクを辿ってそれらのページを引用し、`hot.md` は引用しない。主張の出典として `hot.md` を決して引用しない。
@@ -233,8 +233,8 @@ wiki の中身から回答を組み立てる:
 
 統合した回答の中での形（書式の例示であって、値の一覧ではない）:
 ```
-[[concept-page]] (reasoning only — no measurement behind this) — Claims X follows from Y.
-[[spec-page]] (sourced, evidence from 2026-02-01 — cheap to re-run) — The current implementation does X.
+[[concept-page]]（推論のみ —— 裏付ける測定は無い）—— X は Y から導かれると主張。
+[[spec-page]]（sourced・証拠は 2026-02-01 —— 再実行は安い）—— 現在の実装は X。
 ```
 
 **プロジェクトのソースのパスを示す（プロジェクト単位の質問）。** 引用したページがプロジェクト単位のもの —— パスが `projects/<name>/...` の下にあるか、frontmatter に `source_path` フィールドを持つ —— なら、実際のコードがどこにあるかを解決し、提案する修正が実在のファイルを名指しでき、次のターンでそれを編集できるようにする:
@@ -242,7 +242,7 @@ wiki の中身から回答を組み立てる:
 1. `$OBSIDIAN_VAULT_PATH/.manifest.json` を読み、`.projects.<name>.source_cwd` を引く —— これが正となるパス。
 2. 代替: プロジェクトが manifest に無ければ、ページの `source_path` frontmatter を使う。
 
-その絶対パスを書いた **`Source code:`** の行を回答に入れる。質問がコードの修正を望んでいることを含意するなら、そのパスを使って編集すべき具体的なファイルを名指しし（例: `<source_cwd>/src/lib/auth.js`）、**明示的な、別の次の一手として実装を申し出る** —— ただし質問への回答の最中には決して編集しない（上の「この skill は読み取り専用」のガードを参照）。
+その絶対パスを書いた **`ソースコード:`** の行を回答に入れる。質問がコードの修正を望んでいることを含意するなら、そのパスを使って編集すべき具体的なファイルを名指しし（例: `<source_cwd>/src/lib/auth.js`）、**明示的な、別の次の一手として実装を申し出る** —— ただし質問への回答の最中には決して編集しない（上の「この skill は読み取り専用」のガードを参照）。
 
 ### Step 6: 質問をログに残す
 
@@ -257,17 +257,17 @@ wiki の中身から回答を組み立てる:
 
 回答は次のように組み立てる:
 
-> **Based on the wiki:**
+> **wiki に基づく回答:**
 >
 > [ソースのページへの [[wikilinks]] を付けた、統合した回答]
 >
-> **Pages consulted:** [[page-a]], [[page-b]], [[page-c]]
+> **参照したページ:** [[page-a]], [[page-b]], [[page-c]]
 >
-> **Other vaults consulted:** `qmd://<collection>/<path>` —— 追加の collection が寄与したときだけ（Step 2b）
+> **参照した他の vault:** `qmd://<collection>/<path>` —— 追加の collection が寄与したときだけ（Step 2b）
 >
-> **Gaps:** [関係しそうだが wiki が扱っていないこと]
+> **欠落:** [関係しそうだが wiki が扱っていないこと]
 >
-> **Source code:** `<source_cwd>` —— 実装するなら、関係するファイルは `…`。
+> **ソースコード:** `<source_cwd>` —— 実装するなら、関係するファイルは `…`。
 > （言ってもらえれば query モードを抜けて変更します。）
 
-**Source code** の行は任意 —— `source_cwd` を解決できたプロジェクト単位の質問のときだけ入れる（Step 5 を参照）。
+**ソースコード** の行は任意 —— `source_cwd` を解決できたプロジェクト単位の質問のときだけ入れる（Step 5 を参照）。

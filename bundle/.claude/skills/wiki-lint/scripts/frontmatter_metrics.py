@@ -2,8 +2,8 @@
 """frontmatter の数値指標（provenance・base_confidence・tag cohesion・summary の長さと index の逐語）を計算する。
 
 依存は標準ライブラリと同じディレクトリの linkgraph.py だけ。wiki-lint の
-Check 3a（Missing Summary）・Check 6（Index Consistency）・Check 7（Provenance Drift）・
-Check 8（Fragmented Tag Clusters）・Rule 12e（Confidence drift）が読む数字をここで出す。
+Check 3a（summary の欠落）・Check 6（index の整合）・Check 7（provenance のドリフト）・
+Check 8（断片化したタグクラスタ）・Rule 12e（confidence のドリフト）が読む数字をここで出す。
 
   provenance         : 本文の 3 マーカーの比率。分母はマーカー総数（コードフェンス・inline code 内は例なので数えない）
   base_confidence    : `~/.claude/doc/doc_wiki_schema.md` の式。source_id への畳み方とバケットは下の分類規則

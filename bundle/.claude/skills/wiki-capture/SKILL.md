@@ -14,7 +14,7 @@ description: 現在の会話を、チャットの書き起こしではなく宣�
 
 ## クイックモード（`--quick`）
 
-`/wiki-capture --quick` として呼ばれたとき、または "quick capture" / "capture this finding" / "save this bug fix" / "save this gotcha" / "drop this to raw" / "quick save to wiki" と言われたときに発動する。
+`/wiki-capture --quick` として呼ばれたとき、または "quick capture" / "capture this finding" / "save this bug fix" / "save this gotcha" / "drop this to raw" / "quick save to wiki"、または「クイックキャプチャ」「この知見を残して」「このバグ修正を保存して」「この落とし穴を保存して」「raw に放り込んで」「wiki にさっと保存して」と言われたときに発動する。
 
 クイックモードは呼ばれたときにしか走らないので、知見がまだ会話の中にあるうちに呼ぶ。
 
@@ -37,9 +37,9 @@ description: 現在の会話を、チャットの書き起こしではなく宣�
 
 7. **完了を伝える** —— ステージングしたファイルを列挙し、昇格させるには `/wiki-ingest` を実行するようユーザーに伝える:
    ```
-   Staged to _raw/:
+   _raw/ へステージングしました:
      _raw/2026-05-27-swift-actor-reentrancy.md   — "Actor reentrancy causes deadlock in async forEach"
-   Run /wiki-ingest to promote these to full wiki pages.
+   本ページへ昇格させるには /wiki-ingest を実行してください。
    ```
    クイックモードは意図して manifest・`index.md`・`log.md`・`hot.md` を書か**ない** —— `/wiki-ingest` による昇格がそのすべてを引き受ける。**ここで止まる。下のフルモードの手順は実行しない。**
 
@@ -52,10 +52,10 @@ description: 現在の会話を、チャットの書き起こしではなく宣�
 ## 着手前に
 
 1. **設定を解決する** —— クイックモードの手順 1 と同じ。加えて `OBSIDIAN_LINK_FORMAT` を読む（既定: `wikilink`）。
-2. これから書く概念で `$OBSIDIAN_VAULT_PATH/index.md` を Grep して既存ページを探す（`~/.claude/doc/doc_wiki_schema.md` の Retrieval Primitives）。丸ごと読むのは grep が空で返ったときだけ
+2. これから書く概念で `$OBSIDIAN_VAULT_PATH/index.md` を Grep して既存ページを探す（`~/.claude/doc/doc_wiki_schema.md` の読み取りプリミティブ）。丸ごと読むのは grep が空で返ったときだけ
 3. `$OBSIDIAN_VAULT_PATH/hot.md` があれば読む —— Step 6 がこれを編集し、その `old_string` をこの読み込みから取る
 
-Step 5 で内部リンクを書くときは、`~/.claude/doc/doc_wiki_schema.md` の Link Format の規則に従って `OBSIDIAN_LINK_FORMAT` の値を当てる（`wikilink` → `[[path/to/page|display]]`、`markdown` → 現在のファイルのディレクトリから計算した `[display](relative/path.md)`）。
+Step 5 で内部リンクを書くときは、`~/.claude/doc/doc_wiki_schema.md` のリンク形式の規則に従って `OBSIDIAN_LINK_FORMAT` の値を当てる（`wikilink` → `[[path/to/page|display]]`、`markdown` → 現在のファイルのディレクトリから計算した `[display](relative/path.md)`）。
 
 ## Step 1: 残す価値のあるものを見極める
 
@@ -133,11 +133,11 @@ provenance:
   ambiguous: 0.X
 base_confidence: 0.42           # 出典が会話ログ 1 本のときの、式の固定の出力。
                                 # 別個の出典が増えたら、`~/.claude/doc/doc_wiki_schema.md` の
-                                # Confidence formula に従って計算し直す（`_raw/` の表からは決して取らない）
+                                # confidence の式に従って計算し直す（`_raw/` の表からは決して取らない）
 lifecycle: draft                # 下限。キャプチャは、後の工程が本文を読んで
                                 # `~/.claude/doc/doc_wiki_lifecycle_rubric.md` に従って段を決めるまで、ここに留まる
 lifecycle_changed: <ISO date today>
-tier: supporting                # 新しいページの既定（schema doc の Importance Tiering）
+tier: supporting                # 新しいページの既定（schema doc の重要度の tier）
 ---
 ```
 
@@ -242,9 +242,9 @@ tier: supporting                # 新しいページの既定（schema doc の I
 
 保存したパスとタイトルを報告する:
 ```
-Saved to: projects/<name>/synthesis/<slug>.md
-Title: <Title>
-Type: synthesis
+保存先: projects/<name>/synthesis/<slug>.md
+タイトル: <Title>
+種類: synthesis
 ```
 
 ## 品質チェックリスト

@@ -10,7 +10,7 @@
 
 1. lint の検査をすべて走らせる（`SKILL.md` の Check 0–13）。
 2. 予定している consolidate のアクションを構造化したリストで出力する（下の「dry-run の出力」を参照）。
-3. ユーザーに尋ねる: `"Apply these N changes? [yes / no / select by number]"`。
+3. ユーザーに尋ねる: `"この N 件の変更を適用しますか？ [yes / no / 番号で選ぶ]"`。
 4. 明示的な確認を得てから書き込みに進む。ユーザーが番号で個々の
    アクションを選んだら、それだけを適用する。番号は dry-run の表示順（Action 1 → 5 の順）に振った通し番号。
 5. ページを決してマージしない —— それには `wiki-dedup` を使う。`lifecycle` を決して書かない —— 行うのはリンク、
@@ -29,7 +29,7 @@
 リンク切れの各リンク先について:
 - タイトルかファイル名があいまい一致で最も近いページを vault から探す（`index.md` のタイトルを対象に `Grep` を使う）
 - 最良の一致が 1 つに決まるなら（編集距離が 2 文字以内か、語根が同じ）: リンクを書き換える。書き換えを記録する: `[[Oringal]] → [[corrected-page]]`。
-- 一致が無ければ: プレーンテキストへ変え（`~~[[Target]]~~` → `Target`）、コメント `<!-- broken link: no match found -->` を足す。
+- 一致が無ければ: プレーンテキストへ変え（`~~[[Target]]~~` → `Target`）、コメント `<!-- リンク切れ: 一致するページが無い -->` を足す。
 - リンク切れを満たすためだけに新しいページを決して作らない。
 - リンクは**リンク元のページが既に使っている記法で**書き換える ——
   `[label](../dir/page.md)` を `[[page]]` に変えると、解決のされ方が変わる。
@@ -67,9 +67,9 @@ Check 1 の各孤立ページについて、そこで挙げた 2 つの誤検知
 （§序列 / §序列外）から読む。値は集合として照合し、決して部分文字列として
 照合しない:
 
-- rank 5–6（人間が承認した段）で陳腐化 → 本文の先頭に足す: `> ⚠️ **Stale**: A human vouched for this on <date>. Verify before relying on it.`
-- rank 3–4（AI が確かめた段）で陳腐化 → 足す: `> ⚠️ **Re-verify**: The evidence behind this dates from <date>. Re-running the check is cheap.` **疑いではなく再検証として書く** —— 測定はその時点では正しかった
-- `index`（序列外）で陳腐化 → 足す: `> ⚠️ **Possibly out of date**: This page indexes others and was last touched <date>.`
+- rank 5–6（人間が承認した段）で陳腐化 → 本文の先頭に足す: `> ⚠️ **陳腐化**: <date> に人間がこれを保証した。頼る前に確かめること。`
+- rank 3–4（AI が確かめた段）で陳腐化 → 足す: `> ⚠️ **再検証**: この内容の証拠は <date> のもの。検査の再実行は安い。` **疑いではなく再検証として書く** —— 測定はその時点では正しかった
+- `index`（序列外）で陳腐化 → 足す: `> ⚠️ **古い可能性**: このページは他のページを索引しており、最後に触れられたのは <date>。`
 - それ以外 → コールアウトなし
 
 コールアウトは、まだ無いときだけ足す。
@@ -83,14 +83,14 @@ Check 1 の各孤立ページについて、そこで挙げた 2 つの誤検知
 - `tier: core` のページは自動で降格しない —— それらは手で設定されたものだ。
 
 `≤ 1` はこのバンドルのどこでも降格の閾値だ（schema doc の
-Importance Tiering と同じ値 —— 決して独自の変種にしない）。
+重要度の tier と同じ値 —— 決して独自の変種にしない）。
 
 ### Action 5: 矛盾のコールアウト
 
 互いに矛盾すると印の付いたページの組（frontmatter の `relationships: contradicts`
 によるもの、または Check 5 で指摘されたもの）それぞれについて:
-- 該当する主張の近くに `> ⚠️ Contradiction flagged with [[Other Page]]` のコールアウトが既にあるかを確かめる。
-- 無ければ、矛盾している主張（または節）の直後に 1 行で足す。矛盾している主張の場所が特定できなければ、本文の末尾に置く。"Key Ideas" や "Open Questions" の節があると決めてかからない（理由: schema doc の Page Template）。
+- 該当する主張の近くに `> ⚠️ [[Other Page]] との矛盾を指摘` のコールアウトが既にあるかを確かめる。
+- 無ければ、矛盾している主張（または節）の直後に 1 行で足す。矛盾している主張の場所が特定できなければ、本文の末尾に置く。"Key Ideas" や "Open Questions" の節があると決めてかからない（理由: schema doc のページ雛形）。
 - 矛盾を解消しない。目に見える形で印を付けるだけにする。
 
 ### Action 6: consolidate のレポートを書く
@@ -99,11 +99,11 @@ Importance Tiering と同じ値 —— 決して独自の変種にしない）�
 
 ```markdown
 ---
-title: Consolidation Report <YYYY-MM-DD>
+title: consolidate レポート <YYYY-MM-DD>
 category: synthesis
 tags: [maintenance, consolidation]
 sources: []
-summary: Auto-generated consolidation report from wiki-lint --consolidate run on <date>.
+summary: wiki-lint --consolidate の <date> の実行から自動生成した consolidate レポート。
 lifecycle: draft
 lifecycle_changed: <date>
 tier: peripheral
@@ -111,35 +111,35 @@ created: <ISO timestamp>
 updated: <ISO timestamp>
 ---
 
-# Consolidation Report — <YYYY-MM-DD>
+# consolidate レポート — <YYYY-MM-DD>
 
-## Summary
-- Broken links fixed: N
-- Ambiguous links qualified: Q
-- Cross-references added: M
-- Stale callouts added: K
-- Tier demotions: D
-- Contradiction callouts added: C
+## 概要
+- 直したリンク切れ: N
+- 修飾した曖昧なリンク: Q
+- 足した相互参照: M
+- 足した陳腐化のコールアウト: K
+- tier の降格: D
+- 足した矛盾のコールアウト: C
 
-## Broken Link Fixes
+## リンク切れの修正
 - `concepts/foo.md:12` — [[OldTarget]] → [[correct-target]]
-- `entities/bar.md:8` — [[Missing]] → `Missing` (no match found)
+- `entities/bar.md:8` — [[Missing]] → `Missing`（一致するページが無い）
 
-## Ambiguous Links Qualified
+## 修飾した曖昧なリンク
 - `project-a/a.md` — [[build-spec]] → [[project-a/build-spec]]
 
-## Cross-References Added (orphan rescue)
-- `concepts/baz.md` — now linked from: [[concepts/alpha]], [[skills/beta]]
+## 足した相互参照（孤立ページの救済）
+- `concepts/baz.md` — リンク元: [[concepts/alpha]], [[skills/beta]]
 
-## Stale Callouts
-- `synthesis/old-analysis.md` — stale callout added (lifecycle=verified, evidence_at 2025-10-01)
-- `project-a/calibration.md` — re-verify callout added (lifecycle=tested, evidence_at 2025-11-20)
+## 陳腐化のコールアウト
+- `synthesis/old-analysis.md` — 陳腐化のコールアウトを追加（lifecycle=verified、evidence_at 2025-10-01）
+- `project-a/calibration.md` — 再検証のコールアウトを追加（lifecycle=tested、evidence_at 2025-11-20）
 
-## Tier Demotions
-- `concepts/unused-concept.md` — supporting → peripheral (1 link, 120 days stale)
+## tier の降格
+- `concepts/unused-concept.md` — supporting → peripheral（リンク 1 本・120 日更新なし）
 
-## Contradiction Callouts
-- `concepts/scaling.md` — flagged contradiction with [[synthesis/efficiency]]
+## 矛盾のコールアウト
+- `concepts/scaling.md` — [[synthesis/efficiency]] との矛盾を指摘
 ```
 
 レポートのページは、ほかの新しいページと同じく `draft` である: 1 回の実行が何をしたかを述べるもので、
@@ -148,18 +148,18 @@ updated: <ISO timestamp>
 ## dry-run の出力（書き込みの前に示す）
 
 ```
-wiki-lint --consolidate — Dry Run
+wiki-lint --consolidate — dry-run
 
-Planned actions (N total):
-[1] Fix broken link: concepts/foo.md:12 [[OldTarget]] → [[correct-target]]
-[2] Qualify ambiguous link: project-a/a.md [[build-spec]] → [[project-a/build-spec]]
-[3] Add cross-ref: concepts/baz.md ← [[concepts/alpha]] (orphan rescue)
-[4] Stale callout: synthesis/old-analysis.md (lifecycle=verified, 208 days since evidence_at)
-[5] Re-verify callout: project-a/calibration.md (lifecycle=tested, 95 days since evidence_at)
-[6] Tier demotion: concepts/unused.md → peripheral (1 link, 112 days stale)
-[7] Contradiction callout: concepts/scaling.md ↔ [[synthesis/efficiency]]
+予定しているアクション（全 N 件）:
+[1] リンク切れの修正: concepts/foo.md:12 [[OldTarget]] → [[correct-target]]
+[2] 曖昧なリンクの修飾: project-a/a.md [[build-spec]] → [[project-a/build-spec]]
+[3] 相互参照の追加: concepts/baz.md ← [[concepts/alpha]]（孤立ページの救済）
+[4] 陳腐化のコールアウト: synthesis/old-analysis.md（lifecycle=verified、evidence_at から 208 日）
+[5] 再検証のコールアウト: project-a/calibration.md（lifecycle=tested、evidence_at から 95 日）
+[6] tier の降格: concepts/unused.md → peripheral（リンク 1 本・112 日更新なし）
+[7] 矛盾のコールアウト: concepts/scaling.md ↔ [[synthesis/efficiency]]
 
-Apply these 7 changes? [yes / no / select by number]
+この 7 件の変更を適用しますか？ [yes / no / 番号で選ぶ]
 ```
 
 ## consolidate モードの log エントリ

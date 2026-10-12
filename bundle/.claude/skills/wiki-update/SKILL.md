@@ -11,9 +11,9 @@ description: 現在のプロジェクトで得た知識（外部ツールの仕�
 
 1. **設定を解決する** — `OBSIDIAN_VAULT_PATH` が既に export されていればそれを使う（shell rc / direnv / 親プロセス）。無ければ CWD から `$HOME` まで遡って `OBSIDIAN_VAULT_PATH=` を含む `.env` を探し、最初に見つかったものを採る。どちらも無ければ止まり、`.claude/settings.json`（`env`）・shell rc・direnv のどれかで設定するようユーザーに伝える —— パスを決め打ちしたり vault を推測したりしない。**どの vault に書くかはプロジェクトごとの設定で、グローバルな設定ではない** —— リポジトリ単位で設定されるので、セッションが最初から持っていると仮定しない。`OBSIDIAN_LINK_FORMAT` も同じ方法で読む（既定は `wikilink`、もう一方は `markdown`）。
 2. `$OBSIDIAN_VAULT_PATH/.manifest.json` を読み、このプロジェクトが以前に同期されたかを確かめる。
-3. wiki に既に何があるかを、**`index.md` を丸ごと読まずに**調べる。育った vault では `index.md` は数十 KB になり、闇雲に全部読むのがこの skill で最も高くつく操作になる。`~/.claude/doc/doc_wiki_schema.md` の Retrieval Primitives の表に従い、`index.md` をプロジェクト名とこれから書く各概念で `Grep` し、ヒットした数ページの `summary:` を読む。`index.md` を全部読むのは、その grep が空で、なお vault の全体像が要るときだけ。
+3. wiki に既に何があるかを、**`index.md` を丸ごと読まずに**調べる。育った vault では `index.md` は数十 KB になり、闇雲に全部読むのがこの skill で最も高くつく操作になる。`~/.claude/doc/doc_wiki_schema.md` の読み取りプリミティブの表に従い、`index.md` をプロジェクト名とこれから書く各概念で `Grep` し、ヒットした数ページの `summary:` を読む。`index.md` を全部読むのは、その grep が空で、なお vault の全体像が要るときだけ。
 
-Step 4–5 で内部リンクを書くときは、解決した `OBSIDIAN_LINK_FORMAT` が選ぶ形式を使う —— `~/.claude/doc/doc_wiki_schema.md` の Link Format の節を参照。
+Step 4–5 で内部リンクを書くときは、解決した `OBSIDIAN_LINK_FORMAT` が選ぶ形式を使う —— `~/.claude/doc/doc_wiki_schema.md` のリンク形式の節を参照。
 
 ## 運用ルール
 
@@ -125,7 +125,7 @@ lifecycle: draft                # 下限。この skill は直前にした作業
                                 # `~/.claude/doc/doc_wiki_lifecycle_rubric.md` に従って昇格させ、
                                 # `lifecycle_evidence` と `evidence_at` を足す。近いページの段を写さない。
 lifecycle_changed: TIMESTAMP_DATE
-tier: supporting                # 新しいページの既定（schema doc の Importance Tiering）
+tier: supporting                # 新しいページの既定（schema doc の重要度の tier）
 created: TIMESTAMP
 updated: TIMESTAMP
 ---
@@ -140,7 +140,7 @@ updated: TIMESTAMP
 
 **`provenance` と `base_confidence` はテンプレや近いページの数字を写さず、毎回計算して書く。**
 
-- `provenance` は `~/.claude/doc/doc_wiki_schema.md`（Provenance Markers）の 1 行レシピでマーカーを数え、
+- `provenance` は `~/.claude/doc/doc_wiki_schema.md`（provenance マーカー）の 1 行レシピでマーカーを数え、
   その出力を写す。分母はマーカーの総数で、散文の行数ではない（散文を数えると実装ごとに答えが割れる）。
   wiki-capture の `_raw/` 用キャリブレーション表は本ページへ持ち込まない
 - `base_confidence` は同じ doc の式の出力だけ（出典のバケットは同 doc の既定に従う）。証拠の強さは
@@ -148,7 +148,7 @@ updated: TIMESTAMP
 
 **`summary:` frontmatter を書く。** 新規・更新したすべてのページに、1〜2 文・200 字以内で、`>-` の folded 形式で書く。プロジェクト同期でのよい summary は「タイトルからは推測できない、このプロジェクトについての何をこのページが教えてくれるか」に答える。このフィールドが `wiki-query` の安価な検索を支えている。
 
-**provenance マーカーを付ける。** `~/.claude/doc/doc_wiki_schema.md` の Provenance Markers の節に従う。プロジェクト同期では特に:
+**provenance マーカーを付ける。** `~/.claude/doc/doc_wiki_schema.md` の provenance マーカーの節に従う。プロジェクト同期では特に:
 
 - **Extracted**（`^[extracted]`）—— コード・設定・doc・コミットメッセージに見えるもの全般: ファイル構成、依存、関数シグネチャ、ファイルが何をするか。
 - **Inferred**（`^[inferred]`）—— 判断が*なぜ*なされたか、設計の根拠、トレードオフ、「チームは Y だから X を選んだ」。ただしコミットメッセージ・doc・ADR が明示しているものは除く。
@@ -205,7 +205,7 @@ updated: TIMESTAMP
 
 ### `hot.md` を更新する
 
-**`hot.md` はキャッシュで、1 エントリ 1 行。ここには何も溜めない。** 作業中にも他のセッションが書き込むので、**変更は変更箇所をちょうど覆う最小範囲への `Edit` だけで行い、`Write` は使わない**（理由: schema doc の Special Files）。
+**`hot.md` はキャッシュで、1 エントリ 1 行。ここには何も溜めない。** 作業中にも他のセッションが書き込むので、**変更は変更箇所をちょうど覆う最小範囲への `Edit` だけで行い、`Write` は使わない**（理由: schema doc の特殊ファイル）。
 
 - 変える部分だけを読む: `Grep -A 6 "## Recent Activity" $OBSIDIAN_VAULT_PATH/hot.md` なら、ファイルを読み込まずに置き換える行が返る。
 - **Recent Activity** —— この節だけ: 操作 1 回につき 1 行、新しい順、直近 3 件だけ。自分の行を 1 回の `Edit` で先頭に入れ、最も古い行は**別の** `Edit` で落とす —— 両方を一度にやると、節全体を `old_string` に入れることになる。
@@ -216,7 +216,7 @@ updated: TIMESTAMP
 
 エントリはファイル一覧ではなく、何が起きたかで書く: 「obsidian-wiki を同期 —— wiki-capture を追加した。新しくできるようになったのは、進行中の会話を wiki ページにすること。」
 
-`hot.md` が無ければ、`~/.claude/doc/doc_wiki_schema.md` の雛形（Special Files → `hot.md`）どおりに作る。教訓の節は無い —— 書き漏れではなく意図的に置いていない。
+`hot.md` が無ければ、`~/.claude/doc/doc_wiki_schema.md` の雛形（特殊ファイル → `hot.md`）どおりに作る。教訓の節は無い —— 書き漏れではなく意図的に置いていない。
 
 **ここで QMD の検索インデックスを更新しない。** markdown の vault が正本で、SessionStart hook がすべての vault を無条件に再インデックスする —— いま書いたページは、次のセッションの開始時に検索できるようになる。それまでは `wiki-query` が `Grep` に落ちるので、インデックスを放っておいても何も失わない。同期の一部として `qmd update` / `qmd embed` を走らせない。
 

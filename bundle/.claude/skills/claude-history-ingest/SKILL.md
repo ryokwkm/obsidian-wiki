@@ -319,14 +319,14 @@ base_confidence: 0.42
 lifecycle: draft                # 下限。セッションの会話ログは、その中の主張自体の証拠にならない ——
                                 # 会話ログに確認が実際に走った様子が出ているときだけ昇格させる
 lifecycle_changed: <ISO date today>
-tier: supporting                # 新しいページの既定（schema doc の Importance Tiering）
+tier: supporting                # 新しいページの既定（schema doc の重要度の tier）
 ```
 
 値・段・昇格の規則は 1 か所にだけある —— **`~/.claude/doc/doc_wiki_lifecycle_rubric.md`**。`lifecycle` の値を書いたり変えたりする前にそれを読む。その値の一覧をどこにも写さない。特に注意すること: 確認が通ったと言っている会話ログは確認そのものではない（メタ検証では昇格しない）。そして最上位の 2 つの段は人間だけのもので、AI は決して書かない。
 
 更新時は、段を上げる確認が走った様子を会話ログそのものが示していない限り、`lifecycle` と `lifecycle_changed` を変えない —— 示しているなら、ルーブリックに従って段を付け直し、`lifecycle_evidence` / `evidence_at` も合わせて更新する。
 
-**provenance を付ける。** `~/.claude/doc/doc_wiki_schema.md`（Provenance Markers）の規約に従う: すべての主張にマーカーを付ける —— ソースが言っていることの言い換えには `^[extracted]`、統合して導いた主張には `^[inferred]`、異論があるか不明瞭なものには `^[ambiguous]`。主張でないもの（見出し・表・コード）には付けず、数えない。
+**provenance を付ける。** `~/.claude/doc/doc_wiki_schema.md`（provenance マーカー）の規約に従う: すべての主張にマーカーを付ける —— ソースが言っていることの言い換えには `^[extracted]`、統合して導いた主張には `^[inferred]`、異論があるか不明瞭なものには `^[ambiguous]`。主張でないもの（見出し・表・コード）には付けず、数えない。
 
 - **メモリファイル**はおおむね extracted —— ユーザーが手で書いたもので、既に蒸留されている。複数のメモリファイルの主張をつなぎ合わせているのでない限り、メモリ由来の主張は extracted として扱う。
 - **会話からの蒸留**はおおむね inferred。多くのやり取りから筋の通った主張を組み立てており、暗黙の推論を補うことも多い。統合して得たパターン・セッションをまたぐ一般化・「ユーザーが本当に言いたかったこと」の解釈には、`^[inferred]` を惜しまず付ける。
@@ -351,7 +351,7 @@ manifest の `projects` 節も更新する。**キーの集合は
 ⚠️ **キー単位でマージする —— エントリを決して置き換えない。** `wiki-update` も同じリポジトリのエントリを同じキーで
 書いており、`source_cwd` / `last_commit_synced` はそちらから来る。
 オブジェクトを丸ごと代入する（`jq '.projects["<name>"] = {…}'`）とそれらが落ち、`wiki-query` の
-`Source code:` の行が出なくなり、次回の差分計算
+`ソースコード:` の行が出なくなり、次回の差分計算
 （`git merge-base --is-ancestor <last_commit_synced> HEAD`）がプロジェクト全体の再スキャンになる。
 同じリポジトリのエントリを綴りの違う名前で 2 つ目として足さず、manifest に既にあるキーを
 使い回す。
@@ -386,13 +386,13 @@ manifest の `projects` 節も更新する。**キーの集合は
 **`hot.md`** —— `$OBSIDIAN_VAULT_PATH/hot.md` を読む。`hot.md` はキャッシュで、1 エントリ 1 行。ここには何も溜めない。
 
 ⚠️ **変更は、その箇所を特定できる最小の範囲への `Edit` だけで行う —— 置き換える行であって、その周りの節ではない。
-ファイルを丸ごと書かない**（理由: schema doc の Special Files）。
+ファイルを丸ごと書かない**（理由: schema doc の特殊ファイル）。
 
 - **`## Recent Activity`** —— この実行について 1 行、新しい順。1 回の `Edit` で先頭に入れる —— 例: 「2 つのプロジェクトにまたがる Claude の会話 5 件を取り込み、API 設計とテスト戦略のパターンを掘り出した。」節が既に 3 件を持っていれば、最も古い行を**別の** `Edit` で消す（両方を一度にやると、節全体を `old_string` に入れることになる）。
 - **`## Active Threads`** —— スレッド 1 つにつき 1 行、最大 3 件で置き換え、もう動いていないスレッドは落とす。**掘り出したパターンはここに書かない** —— それらはいま書いたページに置く。この節がファイルに無ければ、足さずに無いままにする。
 - **frontmatter の `updated:` フィールドを現在のタイムスタンプに更新する** —— 忘れやすい。本文の編集と frontmatter の更新は必ず両方行う。
 
-ファイルが無ければ、`~/.claude/doc/doc_wiki_schema.md` の雛形（Special Files → `hot.md`）どおりに作り、
+ファイルが無ければ、`~/.claude/doc/doc_wiki_schema.md` の雛形（特殊ファイル → `hot.md`）どおりに作り、
 それから各節を埋める。教訓の節は無い —— 意図的に置いていない。
 
 ## プライバシー

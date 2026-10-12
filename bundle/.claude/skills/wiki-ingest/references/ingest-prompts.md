@@ -46,7 +46,7 @@
 
 知識を抽出したら、次のつながりの型を探す。**これらはリンクを見つけるためのレンズであって、
 `type:` の値ではない** —— 型付きの辺を記録するときは、`~/.claude/doc/doc_wiki_schema.md` の
-Typed Relationships の列挙値を使う:
+型付きの関係の列挙値を使う:
 
 - **Is-a**: 「Transformer はニューラルネットワークの一種」→ transformer のページから neural-network のページへリンク
 - **Uses**: 「RLHF は報酬モデルを使う」→ RLHF から reward-models へリンク
