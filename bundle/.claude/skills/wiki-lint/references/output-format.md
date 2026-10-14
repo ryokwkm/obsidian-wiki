@@ -27,6 +27,9 @@
 
 ### 陳腐化した内容（N 件）
 - `references/paper-x.md` — 出典の更新は 2024-03-10、ページの最終更新は 2024-01-05
+- `skills/tool-config.md` — 出典 `~/.gitconfig` の更新は 2024-03-02（git の外なので mtime。中身と無関係な書き込みでも進む）、ページの最終更新は 2024-02-20
+- 持ち主のプロジェクトが決まらない相対パス 12 件（例: `concepts/a.md` の `doc_overview.md`）—— `sources:` に `projects/<name>` が無い
+- 出典がもう無い 8 件（例: `entities/b.md` の `claude-global/rules/old.md`）—— 改名か削除。パスを今の場所へ直す
 
 ### 矛盾（N 件）
 - `concepts/scaling.md` は「X」と主張するが、`synthesis/efficiency.md` は「X ではない」と主張する
@@ -80,6 +83,7 @@ vault に `misc/*.md` があるときだけ。無ければ節ごと省く。
 - `concepts/scaling.md` — `base_confidence: 1.4` が範囲 [0.0, 1.0] の外にある
 - `project-a/spec.md` — `lifecycle: tested` だが `evidence_at` が無い（Rule 12f）
 - `concepts/bar.md` — `lifecycle: sourced`、`lifecycle_evidence: "§3 の実装表"` — その節がもう無い（Rule 12f）
+- 22 ページの `lifecycle_evidence` が `§` で在処を指さない散文で、節の有無を確かめられない（例: `concepts/baz.md`）（Rule 12f）
 - `concepts/heuristic.md` — `lifecycle: tested` だが本文にコマンドの出力もサンプル数も無い（Rule 12f、ヒューリスティック）
 - `synthesis/old-analysis.md` — 陳腐化（evidence_at 2025-10-01、182 日）lifecycle=verified ⚠️ 優先度高
 - `concepts/pipeline.md` — 陳腐化（updated 2025-11-15、137 日）lifecycle=index

@@ -297,6 +297,13 @@ def strip_code_regions(text: str) -> str:
 
     SKILL.md や wiki ページはリンク記法の**例**を大量に含む。それらは説明であって辺ではない
     （実測で、ある vault の broken 10 件中 7 件がこれだった）。
+    """
+    return "\n".join(_INLINE_CODE_RE.sub("", line) for line in strip_fences(text).split("\n"))
+
+
+def strip_fences(text: str) -> str:
+    """コードフェンスの中の行を空行にする（inline code は残す）。
+
     行走査にしているのは、閉じ忘れたフェンスの後ろが漏れるより EOF まで落とす方が安全なため。
     フェンス内の行は空行に置換する（削除しない）—— 報告に出す行番号をずらさないため。
     """
@@ -315,7 +322,7 @@ def strip_code_regions(text: str) -> str:
             marker = m.group(1)
             out.append("")
             continue
-        out.append(_INLINE_CODE_RE.sub("", line))
+        out.append(line)
     return "\n".join(out)
 
 

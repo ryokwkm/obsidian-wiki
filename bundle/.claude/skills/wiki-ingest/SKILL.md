@@ -319,8 +319,8 @@ relationships:
 base_confidence: <computed>   # [0.0, 1.0] —— 式は下記
 lifecycle: draft                # 下限。本文がページの主張の証拠を既に持っているなら、同じ回のうちに
                                 # `~/.claude/doc/doc_wiki_lifecycle_rubric.md` に従って昇格させ、
-                                # `lifecycle_evidence` と `evidence_at` を足す。近いページの
-                                # 段を写さない。
+                                # `lifecycle_evidence`（`§<見出し名>` で在処だけ —— ルーブリック
+                                # R5）と `evidence_at` を足す。近いページの段を写さない。
 lifecycle_changed: "<ISO date today>"
 tier: supporting                # 新しいページの既定（schema doc の重要度の tier）
 ```

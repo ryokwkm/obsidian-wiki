@@ -2,12 +2,15 @@
 """frontmatter の数値指標（provenance・base_confidence・tag cohesion・summary の長さと index の逐語）を計算する。
 
 依存は標準ライブラリと同じディレクトリの linkgraph.py だけ。wiki-lint の
-Check 3a（summary の欠落）・Check 6（index の整合）・Check 7（provenance のドリフト）・
-Check 8（断片化したタグクラスタ）・Rule 12e（confidence のドリフト）が読む数字をここで出す。
+Check 3a（summary の欠落）・Check 5（矛盾）・Check 6（index の整合）・Check 7（provenance のドリフト）・
+Check 8（断片化したタグクラスタ）・Rule 12e（confidence のドリフト）・Rule 12f（証拠の在処）が読む数字を
+ここで出す。
 
   provenance         : 本文の 3 マーカーの比率。分母はマーカー総数（コードフェンス・inline code 内は例なので数えない）
   base_confidence    : `~/.claude/doc/doc_wiki_schema.md` の式。source_id への畳み方とバケットは下の分類規則
   clusters           : 5 ページ以上に付いた tag ごとの n・リンクで結ばれた組の数・cohesion
+  tag_pairs          : 2 つ以上の tag を共有するページの組の上位。共有 tag の希少度（1 / その tag のページ数）の和で並べる
+  lifecycle_evidence : ページごとに、`§` で指した節が本文の見出しにまだあるか
   summary_over_limit : `summary:` が 200 字を超えるページ
   index              : index.md のエントリのうち、リンク先の `summary:` の逐語でないもの（index.md が無ければ null）
 
@@ -53,6 +56,9 @@ BUCKET_SCORES = {
 CONFIDENCE_DRIFT = 0.05
 PROVENANCE_DRIFT = 0.20
 CLUSTER_MIN_PAGES = 5
+# 矛盾を探すのにモデルが読み比べられる組の数。広い tag（数十ページ）を共有するだけの組は
+# 万単位になるので、件数で切らないと「絞る」が機能しない
+PAIR_TOP_N = 15
 SUMMARY_MAX_CHARS = 200
 
 MARKERS = ("extracted", "inferred", "ambiguous")
@@ -67,6 +73,14 @@ _FORUM_HOSTS = ("stackoverflow.com", "stackexchange.com", "news.ycombinator.com"
 _DOC_HOST_PREFIXES = ("docs.", "developer.", "developers.", "learn.")
 _EXTENSIONLESS_REPO_FILES = ("Makefile", "Dockerfile", "Justfile", "Rakefile", "Gemfile", "Brewfile")
 _WIKI_DIRS = ("concepts/","entities/", "skills/", "references/", "synthesis/", "journal/")
+_RESERVED_TAG_PREFIX = "visibility/"
+_HEADING_RE = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$", re.MULTILINE)
+# `§` の後ろの参照を切る位置。書き手は「§節名 の実測（…）」のように説明を続けるので、
+# 空白の後の助詞・括弧・区切り記号の手前までを節名とみなす
+_REF_CUT_RE = re.compile(r"\s[のはがとでにを]|[（(「」『』\"'`、。，,:：；;／—]|\s/\s")
+_IGNORED_CHARS_RE = re.compile(r"[\s「」『』\"'`*]")
+_TRAILING_PAREN_RE = re.compile(r"[（(][^（()）]*[)）]$")
+_SECTION_NUMBER_RE = re.compile(r"^\d+(?:\.\d+)*\.?")
 
 
 def main() -> int:
@@ -94,31 +108,48 @@ def main() -> int:
 
 def analyse(vault: Path, *, overrides: dict[str, str] | None = None) -> dict:
     """vault を走査し、ページごとの指標と tag クラスタを返す。"""
-    included, _excluded, _unreadable = linkgraph.collect_pages(vault)
-    paths = [p["path"] for p in included if p["base"] not in linkgraph.RESERVED_PAGE_STEMS]
+    included, excluded, _unreadable = linkgraph.collect_pages(vault)
+    read = read_pages(vault, included)
 
     pages: dict[str, dict] = {}
     tags_of: dict[str, list[str]] = {}
     summaries: dict[str, str | None] = {}
-    for rel in paths:
-        text = (vault / rel).read_text(encoding="utf-8", errors="replace")
-        front, body = split_frontmatter(text)
-        meta = parse_frontmatter(front)
+    for rel, meta, body in read:
         tags_of[rel] = meta.get("tags") or []
         summaries[rel] = meta.get("summary")
         pages[rel] = {
             "provenance": provenance_entry(body, meta.get("provenance")),
             "base_confidence": confidence_entry(meta, overrides or {}, vault.resolve().name),
+            "lifecycle_evidence": evidence_entry(meta.get("lifecycle_evidence"), body),
         }
 
+    members: dict[str, set[str]] = defaultdict(set)
+    for rel, tags in tags_of.items():
+        for t in tags:
+            members[t].add(rel)
+    linked = {frozenset((e["from"], e["to"])) for e in linkgraph.analyse(vault)["edges"]}
     return {
         "pages": pages,
-        "clusters": clusters(vault, tags_of),
+        "clusters": clusters(members, linked),
+        "tag_pairs": tag_pairs(members, linked),
         "summary_over_limit": [
             {"page": rel, "chars": len(s)} for rel, s in sorted(summaries.items()) if s and len(s) > SUMMARY_MAX_CHARS
         ],
-        "index": index_report(vault, included + _excluded, summaries),
+        "index": index_report(vault, included + excluded, summaries),
     }
+
+
+def read_pages(vault: Path, included: list[dict] | None = None) -> list[tuple[str, dict, str]]:
+    """予約ファイルを除くページを (相対パス, frontmatter, 本文) で返す。"""
+    if included is None:
+        included = linkgraph.collect_pages(vault)[0]
+    out = []
+    for p in included:
+        if p["base"] in linkgraph.RESERVED_PAGE_STEMS:
+            continue
+        front, body = split_frontmatter((vault / p["path"]).read_text(encoding="utf-8", errors="replace"))
+        out.append((p["path"], parse_frontmatter(front), body))
+    return out
 
 
 def split_frontmatter(text: str) -> tuple[str, str]:
@@ -348,21 +379,87 @@ def base_confidence(classified: list[dict]) -> float:
     return round(count * 0.5 + quality * 0.5, 2)
 
 
-def clusters(vault: Path, tags_of: dict[str, list[str]]) -> dict:
-    members: dict[str, set[str]] = defaultdict(set)
-    for rel, tags in tags_of.items():
-        for t in tags:
-            members[t].add(rel)
+def clusters(members: dict[str, set[str]], linked: set[frozenset]) -> dict:
     big = {t: pages for t, pages in members.items() if len(pages) >= CLUSTER_MIN_PAGES}
-    if not big:
-        return {}
-    linked = {frozenset((e["from"], e["to"])) for e in linkgraph.analyse(vault)["edges"]}
     out = {}
     for tag, pages in sorted(big.items()):
         n = len(pages)
         pairs = sum(1 for a, b in combinations(sorted(pages), 2) if frozenset((a, b)) in linked)
         out[tag] = {"n": n, "linked_pairs": pairs, "cohesion": round(pairs / (n * (n - 1) / 2), 2)}
     return out
+
+
+def tag_pairs(members: dict[str, set[str]], linked: set[frozenset]) -> list[dict]:
+    """2 つ以上の tag を共有するページの組を、共有 tag の希少度の和で上位 PAIR_TOP_N 組。
+
+    珍しい tag を共有する組ほど同じ話題を扱っている見込みが高い。同点は互いを参照していない組を先に置く
+    （参照し合っていれば食い違いに気づかれている可能性がある）。
+    """
+    shared: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for tag, pages in members.items():
+        if tag.startswith(_RESERVED_TAG_PREFIX):
+            continue
+        for a, b in combinations(sorted(pages), 2):
+            shared[(a, b)].append(tag)
+    pairs = []
+    for (a, b), tags in shared.items():
+        if len(tags) < 2:
+            continue
+        pairs.append({
+            "pages": [a, b],
+            "shared": sorted(tags),
+            # 和の順序で末尾の桁が揺れて同点の並びが変わらないよう丸めてから比べる
+            "score": round(sum(1 / len(members[t]) for t in tags), 6),
+            "linked": frozenset((a, b)) in linked,
+        })
+    pairs.sort(key=lambda p: (-p["score"], p["linked"], p["pages"]))
+    return pairs[:PAIR_TOP_N]
+
+
+def evidence_entry(evidence, body: str) -> dict | None:
+    """`lifecycle_evidence` の `§` 参照が本文の見出しにまだあるか。値が空なら None。
+
+    status: ok（どれか 1 つが見出しに当たる）/ missing（1 つも当たらない）/ unverifiable（`§` が無い散文）
+    """
+    if not evidence or not isinstance(evidence, str):
+        return None
+    # 見出しの inline code（`--init` 等）は節名の一部なので、落とすのはフェンスだけ
+    headings = [normalize(h) for h in _HEADING_RE.findall(linkgraph.strip_fences(body))]
+    refs = [{"ref": r, "found": section_exists(r, headings)} for r in section_refs(evidence)]
+    if not refs:
+        return {"status": "unverifiable", "refs": []}
+    return {"status": "ok" if any(r["found"] for r in refs) else "missing", "refs": refs}
+
+
+def section_refs(evidence: str) -> list[str]:
+    refs = []
+    for chunk in evidence.split("§")[1:]:
+        chunk = chunk.strip().lstrip("「『\"'`")
+        ref = _REF_CUT_RE.split(chunk, maxsplit=1)[0].strip()
+        if ref:
+            refs.append(ref)
+    return refs
+
+
+def section_exists(ref: str, headings: list[str]) -> bool:
+    """番号だけの参照（`§3`）は見出しの先頭の番号と、それ以外はどちらかが他方の先頭か、4 字以上で見出しに含まれるかで当てる。"""
+    ref = normalize(ref)
+    if re.fullmatch(r"\d+(?:\.\d+)*", ref):
+        return any(re.match(rf"{re.escape(ref)}(?![\d])", h) for h in headings)
+    # 「§2 区分を…」のように番号と節名を並べた参照は、見出しの番号の書き方（`2.`）に関わらず節名で当てる
+    refs = {r for r in (ref, _SECTION_NUMBER_RE.sub("", ref)) if len(r) >= 2}
+    for h in headings:
+        name = _SECTION_NUMBER_RE.sub("", h)
+        for cand in {h, name, _TRAILING_PAREN_RE.sub("", name)}:
+            if len(cand) >= 2 and any(cand.startswith(r) or r.startswith(cand) for r in refs):
+                return True
+        if any(len(r) >= 4 and r in h for r in refs):
+            return True
+    return False
+
+
+def normalize(text: str) -> str:
+    return _IGNORED_CHARS_RE.sub("", text)
 
 
 def fix_confidence(vault: Path, report: dict) -> list[str]:

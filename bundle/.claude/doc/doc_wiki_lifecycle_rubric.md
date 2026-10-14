@@ -95,12 +95,14 @@ rank 4 のページは表形式の観測記録を持つことが多く、コー�
 
 ```yaml
 lifecycle: tested
-lifecycle_evidence: "§3 の追試ブートストラップ表"   # 根拠の在処（節見出し・表名）
+lifecycle_evidence: "§3 の追試ブートストラップ表"   # 根拠の在処（節見出し。表はその表がある節の見出しで指す）
 evidence_at: 2026-08-06                            # 証拠を得た日（ISO date）
 lifecycle_changed: 2026-08-12                      # 段が変わった日（ISO date）
 ```
 
 本文の文字列に依存した判定は次の編集で腐る。`lifecycle_evidence` が指す節が消えたら lint が拾える。
+そのために `lifecycle_evidence` には**在処だけ**を `§<見出し名>` の形で書く（補足は後ろの括弧に。証拠の中身は本文に置く）。
+lint は `§` の後ろの節名を本文の見出しと照合するので、`§` の無い散文は節の有無を確かめられない。
 
 `lifecycle_evidence` と `evidence_at` は **rank 2 以上で必須**（`draft` と序列外では不要）。
 

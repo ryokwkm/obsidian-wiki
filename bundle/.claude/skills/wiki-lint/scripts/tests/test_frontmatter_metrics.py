@@ -3,7 +3,8 @@
 
     python3 llm-tpl/wiki/.claude/skills/wiki-lint/scripts/tests/test_frontmatter_metrics.py
 
-provenance の分母・source_id の畳み方・base_confidence の式・cohesion の分母を固定する。
+provenance の分母・source_id の畳み方・base_confidence の式・cohesion の分母・
+矛盾候補の組の選び方・lifecycle_evidence の見出し照合を固定する。
 どれも手で数えると実装ごとに答えが割れた箇所なので、境界をテストで縛る。
 """
 
@@ -173,6 +174,84 @@ class VaultReportTest(VaultCase):
             "README.md": page("title: Readme"),
         }))
         self.assertEqual(list(rep["pages"]), ["concepts/a.md"])
+
+
+class TagPairsTest(VaultCase):
+    def test_rare_shared_tags_rank_first_and_unlinked_breaks_ties(self):
+        rep = fm.analyse(self.build({
+            "concepts/a.md": page("title: A\ntags: [rare, common]", "[[b]]"),
+            "concepts/b.md": page("title: B\ntags: [rare, common]"),
+            "concepts/c.md": page("title: C\ntags: [common, mid]"),
+            "concepts/d.md": page("title: D\ntags: [common, mid, x, visibility/pii]"),
+            "concepts/e.md": page("title: E\ntags: [x, visibility/pii]"),
+        }))
+        # a×b も c×d も 1/2 + 1/4。同点は互いを参照していない組が先。
+        # 共有タグが 1 つの組（a×c）と visibility/ だけを足して 2 つになる組（d×e）は入らない
+        self.assertEqual(rep["tag_pairs"], [
+            {"pages": ["concepts/c.md", "concepts/d.md"], "shared": ["common", "mid"], "score": 0.75, "linked": False},
+            {"pages": ["concepts/a.md", "concepts/b.md"], "shared": ["common", "rare"], "score": 0.75, "linked": True},
+        ])
+
+    def test_keeps_only_the_top_pairs(self):
+        files = {f"concepts/p{i}.md": page(f"title: P{i}\ntags: [s, t]") for i in range(7)}
+        rep = fm.analyse(self.build(files))
+        self.assertEqual(len(rep["tag_pairs"]), fm.PAIR_TOP_N)  # 7 ページで 21 組
+
+
+class EvidenceTest(unittest.TestCase):
+    BODY = (
+        "# タイトル\n\n## 3. 追試表\n\n## 黙って失敗する API を疑う\n\n"
+        "## 手続きを prose で書くと、実行するたびに結果が変わる\n\n## 30 日の推移\n\n## `--init` の向き\n\n"
+        "```markdown\n## コードの中の見出し\n```\n"
+    )
+
+    def entry(self, evidence):
+        return fm.evidence_entry(evidence, self.BODY)
+
+    def test_section_name_followed_by_description(self):
+        self.assertEqual(self.entry("§黙って失敗する API を疑う（実測 3 件）"), {
+            "status": "ok", "refs": [{"ref": "黙って失敗する API", "found": True}],
+        })
+
+    def test_number_matches_the_numbered_heading_only(self):
+        self.assertEqual(self.entry("§3 の追試表")["status"], "ok")
+        self.assertEqual(self.entry("§追試表")["status"], "ok")  # 見出しの番号を外しても当たる
+        self.assertEqual(fm.evidence_entry("§3 の表", "## 30 日の推移\n")["status"], "missing")
+        # 番号と節名を並べて書いた参照は、見出しの番号の書き方（`3.`）が違っても節名で当たる
+        self.assertEqual(self.entry("§3 追試表（実測）")["status"], "ok")
+        # 番号を外して 1 字になった参照（`日`）で「日報」に当てない
+        self.assertEqual(fm.evidence_entry("§30日", "## 日報\n")["status"], "missing")
+
+    def test_inline_code_in_heading_is_part_of_the_name(self):
+        self.assertEqual(self.entry("§`--init` の向きは初回で確認")["status"], "ok")
+
+    def test_quoted_reference(self):
+        self.assertEqual(self.entry("§「手続きを prose で書くと、実行するたびに結果が変わる」の 2 vault 実測")["status"], "ok")
+
+    def test_one_found_reference_is_enough(self):
+        self.assertEqual(self.entry("§消えた節 と §3 の追試表"), {
+            "status": "ok", "refs": [{"ref": "消えた節", "found": False}, {"ref": "3", "found": True}],
+        })
+
+    def test_headings_in_code_are_examples(self):
+        self.assertEqual(self.entry("§コードの中の見出し")["status"], "missing")
+
+    def test_prose_without_section_is_unverifiable(self):
+        self.assertEqual(self.entry("2026-08-19 に全手順を実施して確認"), {"status": "unverifiable", "refs": []})
+
+    def test_empty_is_none(self):
+        self.assertIsNone(self.entry(""))
+        self.assertIsNone(self.entry(None))
+
+    def test_report_carries_the_entry_per_page(self):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        (root / "concepts").mkdir()
+        (root / "concepts/a.md").write_text(page("title: A\nlifecycle_evidence: \"§消えた節\"", "## 別の節\n"), encoding="utf-8")
+        (root / "concepts/b.md").write_text(page("title: B"), encoding="utf-8")
+        pages = fm.analyse(root)["pages"]
+        self.assertEqual(pages["concepts/a.md"]["lifecycle_evidence"]["status"], "missing")
+        self.assertIsNone(pages["concepts/b.md"]["lifecycle_evidence"])
 
 
 class FoldedScalarTest(unittest.TestCase):

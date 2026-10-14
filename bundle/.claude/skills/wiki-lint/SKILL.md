@@ -126,8 +126,16 @@ Check 7 と 11 には `--json` の形が要る。
 `updated` のタイムスタンプが、出典に比べて古いページ。
 
 **確かめ方:**
-- ページの `updated` タイムスタンプを、出典ファイルの更新時刻と比べる。`sources:` が git のファイル（リポジトリ相対パス。manifest の `source_cwd` の下）なら、その**今の**更新時刻（`git log -1 --format=%cI -- <path>`。無ければファイルの mtime）と比べる。manifest の `modified_at` は取り込んだ時点の値なので使わない。`_source_docs/` のコピーは取り込み時点で凍結した原本なので比べない。URL・会話・他のページも比べられないので飛ばす
-- ページが最後に更新された後で出典が変更されているページを指摘する
+- 比べるのはスクリプト —— 出典の解決と時刻の比較を手でしない:
+
+  ```bash
+  python3 ~/.claude/skills/wiki-lint/scripts/stale_sources.py "$OBSIDIAN_VAULT_PATH"
+  ```
+
+  `sources:` のファイルの今の更新時刻（git の外のファイルは mtime で、`fallback: "mtime"` が付く）がページの `updated` より新しいものが `stale` に出る。相対パスは、持ち主のプロジェクト（同じ `sources:` の `projects/<name>` → manifest の `projects` のキーと同じ名前だけの行 → vault 名）の `source_cwd` から解決する
+- `stale` のページを指摘する。`fallback: "mtime"` の行は、中身と無関係な書き込みでも時刻が進むので、そう分かるように書く
+- 比べないもの（`skipped` に種類ごとの件数と 3 例）: URL・会話（`url_or_text`）、他のページと `_source_docs/` の凍結した原本（`wiki`）、ディレクトリ（`dir`）、作業のたびに書き足される管理ファイル（`living`。`progress.md` 等、一覧はスクリプトの `LIVING_FILES`）。指摘はしない
+- `skipped.no_base`（持ち主のプロジェクトが決まらない相対パス）と `skipped.missing`（解決した先にファイルが無い —— 改名・削除）は、0 でなければそれぞれ件数と 3 例を 1 行で報告する。直すのは本文を持つ次の skill（`sources:` に `projects/<name>` を足す・パスを今の場所へ直す）
 
 ### 5. 矛盾
 
@@ -135,7 +143,7 @@ Check 7 と 11 には `--json` の形が要る。
 
 **確かめ方:**
 - 関連するページを読んで主張を比べる必要がある
-- タグを共有しているページや、相互参照の多いページに絞る（目安: Check 7 のスクリプトの実行結果の `clusters`（Check 8 が読むもの）に挙がったタグを共有するページの組と、Check 0 の `incoming` 上位 10 ページとその相互参照先。vault 全体の総当たりはしない）
+- タグを共有しているページや、相互参照の多いページに絞る（目安: Check 7 のスクリプトの実行結果の `tag_pairs` と、Check 0 の `incoming` 上位 10 ページとその相互参照先。vault 全体の総当たりはしない）。`tag_pairs` は `visibility/` 以外のタグを 2 つ以上共有するページの組の上位で、珍しいタグを共有する組ほど上に来る。`linked: false` の組から読む —— 互いを参照していない組ほど、食い違いに気づかれていない見込みが高い
 - "however"・"in contrast"・"despite"、日本語なら「しかし」「ただし」「一方」「それに対して」「にもかかわらず」のような言い回しを探す。既に認識されて書かれている矛盾を、認識されていない矛盾と分ける手がかりになりうる
 
 **直し方:**
@@ -166,7 +174,7 @@ Check 7 と 11 には `--json` の形が要る。
 python3 ~/.claude/skills/wiki-lint/scripts/frontmatter_metrics.py "$OBSIDIAN_VAULT_PATH"
 ```
 
-JSON を出力する。`pages` の下の各エントリは `provenance` = `{extracted, inferred, ambiguous, n_markers, stored, drift_flag}` を持つ（ページにマーカーが無ければ `null`）。分母はマーカーの総数で、コードの中のマーカーは除く。同じ実行結果が Check 3a（`summary_over_limit`）・Check 6（`index`）・Check 8（`clusters`）・Rule 12e（`base_confidence`）にも使われるので、1 回だけ走らせる。
+JSON を出力する。`pages` の下の各エントリは `provenance` = `{extracted, inferred, ambiguous, n_markers, stored, drift_flag}` を持つ（ページにマーカーが無ければ `null`）。分母はマーカーの総数で、コードの中のマーカーは除く。同じ実行結果が Check 3a（`summary_over_limit`）・Check 5（`tag_pairs`）・Check 6（`index`）・Check 8（`clusters`）・Rule 12e（`base_confidence`）・Rule 12f（各ページの `lifecycle_evidence`）にも使われるので、1 回だけ走らせる。
 
 - 次の閾値を当てはめる:
   - **AMBIGUOUS > 15%**: 「推測が多い」（speculation-heavy）として指摘する —— 主張の 7 件に 1 件が本当に不確かなだけでも、ページの出典をもっと固めるか、`synthesis/` へ移すべきだという合図だ
@@ -348,7 +356,7 @@ confidence と lifecycle の frontmatter スキーマを守らせる。**許さ�
 
 - `lifecycle_evidence` があり、空でない → でなければ**エラー**
 - `evidence_at` があり、ISO 日付として解釈できる → でなければ**エラー**
-- `lifecycle_evidence` が名指す節か表が、まだ本文にある → でなければ**警告**（「証拠が編集で消された。この段はもう裏付けが無い」）。判定は `lifecycle_evidence` の文字列から見出し名（`§…`）か表の語を取り、本文を grep する
+- `lifecycle_evidence` が名指す節が、まだ本文にある → Check 7 のスクリプトの実行結果の、そのページの `lifecycle_evidence.status` を読む（`§` の後ろの節名を本文の見出しと照合した結果。見出しの照合を手でしない）。`missing`（`§` で指した節が 1 つも見出しに無い）→ **警告**（「証拠が編集で消された。この段はもう裏付けが無い」。`refs` の `found: false` の節名を添える）。`unverifiable`（`§` が無く、在処を指していない散文）→ ページごとに警告せず、**件数と 3 例を 1 行**で報告する（在処を指す書き方へ直すのは本文を持つ次の skill）。スクリプトは段を問わず値のある全ページに出すので、警告も件数も rank 2–6 のページに絞る
 
 rank 3–4 では加えて、ルーブリックがその段に要求する形を本文が 1 つも持たないとき**警告**する —— それは §序列 の *証拠として本文にあるべきもの* の列にある。形はそこで読み、このファイルへ写さない。
 

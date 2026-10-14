@@ -33,7 +33,7 @@ description: 現在の会話を、チャットの書き起こしではなく宣�
 
 5. リポジトリ名・ファイルパス・言及されたフレームワーク・エラーメッセージから**プロジェクトの文脈を推定する**。確実に推定できる最も具体的な名前を使い、できなければ `null`。
 
-6. **raw ファイルを書く** —— クラスタごとに `$OBSIDIAN_RAW_DIR/<ISO-date>-<slug>.md` を書く。frontmatter の完全な仕様、知見ブロックの本文構成、provenance と confidence のキャリブレーションは `references/RAW-FORMAT.md` を読む。クラスタごとに変わるフィールド: `title`、`tags`（2〜5 個。新しく作らず、vault の既存ページの frontmatter を `^tags:` で grep して出てくるタグを使い回す。`index.md` の `( #tag)` は任意なので語彙源にしない）、`summary`（200 字以内）、`project`（推定した名前か `null`）、`base_confidence` と `provenance.extracted` / `provenance.inferred` の配分（どちらも `references/RAW-FORMAT.md` のキャリブレーション表から取る —— 数字を当て推量しない）、`lifecycle_changed`（今日）、`sources`（`"<project> session (<YYYY-MM-DD>)"`。project が `null` なら `"session (<YYYY-MM-DD>)"`）。
+6. **raw ファイルを書く** —— クラスタごとに `$OBSIDIAN_RAW_DIR/<ISO-date>-<slug>.md` を書く。frontmatter の完全な仕様、知見ブロックの本文構成、provenance と confidence のキャリブレーションは `references/RAW-FORMAT.md` を読む。クラスタごとに変わるフィールド: `title`、`tags`（2〜5 個。新しく作らず、`python3 ~/.claude/skills/wiki-capture/scripts/tag_vocabulary.py "$OBSIDIAN_VAULT_PATH"` が出す既存タグ（`タグ<TAB>ページ数` の行・多い順）から選ぶ。`^tags:` の grep は `tags:` の次の行から `- a` と並べるブロック形式を拾えないので使わない。`index.md` の `( #tag)` は任意なので語彙源にしない）、`summary`（200 字以内）、`project`（推定した名前か `null`）、`base_confidence` と `provenance.extracted` / `provenance.inferred` の配分（どちらも `references/RAW-FORMAT.md` のキャリブレーション表から取る —— 数字を当て推量しない）、`lifecycle_changed`（今日）、`sources`（`"<project> session (<YYYY-MM-DD>)"`。project が `null` なら `"session (<YYYY-MM-DD>)"`）。
 
 7. **完了を伝える** —— ステージングしたファイルを列挙し、昇格させるには `/wiki-ingest` を実行するようユーザーに伝える:
    ```
@@ -121,7 +121,7 @@ Step 5 で内部リンクを書くときは、`~/.claude/doc/doc_wiki_schema.md`
 title: >-
   <Title>
 category: <synthesis|concepts|references|journal|skills>
-tags: [<vault の既存ページの frontmatter で既に使われているドメインのタグ 2〜5 個>]
+tags: [<tag_vocabulary.py が出す既存のドメインのタグ 2〜5 個>]
 sources:
   - "<project> session (<YYYY-MM-DD>)"   # project が無い（null）なら "session (<YYYY-MM-DD>)"
 created: <ISO-8601 timestamp>
